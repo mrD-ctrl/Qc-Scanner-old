@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Real-Time Quality Inspection & Defect Logger</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #3b82f6;
+      --danger: #ef4444;
+      --success: #10b981;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text); padding: 12px; }
+    
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #334155; }
+    h1 { font-size: 1.2rem; }
+
+    .counter-box { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); padding: 8px 16px; border-radius: 8px; text-align: center; }
+    .counter-val { font-size: 1.6rem; font-weight: bold; color: var(--danger); }
+    .btn-reset { background: var(--danger); color: white; border: none; padding: 4px 10px; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 4px; }
+
+    .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    @media(min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
+
+    .card { background: var(--card-bg); border-radius: 12px; padding: 12px; border: 1px solid #334155; }
+    .card h2 { font-size: 1rem; margin-bottom: 8px; color: var(--accent); }
+
+    video, canvas, img { width: 100%; height: auto; border-radius: 8px; background: #000; object-fit: contain; max-height: 280px; }
+    
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    button, input[type="file"] { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; cursor: pointer; }
+    input[type="file"] { display: none; }
+    .file-label { background: #475569; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; cursor: pointer; }
+    
+    .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; margin-top: 6px; }
+    .status-pass { background: var(--success); }
+    .status-fail { background: var(--danger); }
+
+    .slider-group { margin-top: 8px; font-size: 0.8rem; display: flex; align-items: center; gap: 8px; }
+    .slider-group input { flex-grow: 1; }
+
+    .log-list { max-height: 300px; overflow-y: auto; margin-top: 8px; }
+    .log-item { display: flex; gap: 12px; background: #090d16; padding: 8px; border-radius: 6px; margin-bottom: 6px; border-left: 4px solid var(--danger); align-items: center; }
+    .log-item img { width: 50px; height: 50px; }
+    .log-info { font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1>Quality Inspection Scanner</h1>
+      <p style="font-size: 0.75rem; color: var(--text-muted);">Real-time frame comparison & anomaly detection</p>
+    </div>
+    <div class="counter-box">
+      <div>DEFECTS DETECTED</div>
+      <div id="defectCount" class="counter-val">0</div>
+      <button class="btn-reset" onclick="resetCount()">Reset Count</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- Camera Feed Panel -->
+    <div class="card">
+      <h2>Live Inspection Camera</h2>
+      <video id="webcam" autoplay playsinline muted></video>
+      
+      <div class="controls">
+        <button onclick="startCamera('environment')">Rear Camera</button>
+        <button onclick="startCamera('user')">Front/Laptop Camera</button>
+        <button id="toggleScanBtn" onclick="toggleScanning()" style="background: var(--success);">Start Inspection</button>
+      </div>
+
+      <div class="slider-group">
+        <label>Tolerance (Sensitivity):</label>
+        <input type="range" id="sensitivity" min="5" max="50" value="20">
+        <span id="sensVal">20%</span>
+      </div>
+
+      <div id="liveStatus" class="status-badge status-pass" style="margin-top: 8px;">STATUS: STANDBY</div>
+    </div>
+
+    <!-- Golden Reference Panel -->
+    <div class="card">
+      <h2>Golden Reference Target</h2>
+      <canvas id="refCanvas" width="300" height="300"></canvas>
+      
+      <div class="controls">
+        <label class="file-label" for="fileInput">Upload Reference Image</label>
+        <input type="file" id="fileInput" accept="image/*" onchange="loadReferenceFromFile(event)">
+        <button onclick="captureReferenceFromCamera()" style="background: #475569;">Set Live Frame as Ref</button>
+      </div>
+      <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">Upload a verified correct picture to compare passing units against.</p>
+    </div>
+  </div>
+
+  <!-- Defect Log Panel -->
+  <div class="card" style="margin-top: 16px;">
+    <h2>Defect Audit Log</h2>
+    <div id="logList" class="log-list">
+      <div style="font-size: 0.8rem; color: var(--text-muted);">No non-matching items recorded yet.</div>
+    </div>
+  </div>
+
+  <!-- Hidden Processing Canvas -->
+  <canvas id="procCanvas" width="300" height="300" style="display:none;"></canvas>
+
+  <script>
+    const video = document.getElementById('webcam');
+    const refCanvas = document.getElementById('refCanvas');
+    const refCtx = refCanvas.getContext('2d');
+    const procCanvas = document.getElementById('procCanvas');
+    const procCtx = procCanvas.getContext('2d');
+    const sensitivityInput = document.getElementById('sensitivity');
+    const sensValDisplay = document.getElementById('sensVal');
+    const liveStatus = document.getElementById('liveStatus');
+    const logList = document.getElementById('logList');
+    
+    let isScanning = false;
+    let scanInterval = null;
+    let defectCount = 0;
+    let referenceImageData = null;
+    let cooldown = false;
+
+    sensitivityInput.oninput = () => sensValDisplay.innerText = `${sensitivityInput.value}%`;
+
+    async function startCamera(facingMode = 'environment') {
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facingMode, width: { ideal: 640 }, height: { ideal: 640 } },
+          audio: false
+        });
+        video.srcObject = stream;
+      } catch (err) {
+        alert("Camera access denied or unassigned: " + err.message);
+      }
+    }
+
+    function captureReferenceFromCamera() {
+      refCtx.drawImage(video, 0, 0, refCanvas.width, refCanvas.height);
+      referenceImageData = refCtx.getImageData(0, 0, refCanvas.width, refCanvas.height);
+      alert("Golden Reference Saved from Camera Feed.");
+    }
+
+    function loadReferenceFromFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        refCtx.clearRect(0, 0, refCanvas.width, refCanvas.height);
+        refCtx.drawImage(img, 0, 0, refCanvas.width, refCanvas.height);
+        referenceImageData = refCtx.getImageData(0, 0, refCanvas.width, refCanvas.height);
+      };
+      img.src = URL.createObjectURL(file);
+    }
+
+    function toggleScanning() {
+      if (!referenceImageData) {
+        alert("Please set or upload a Golden Reference Image first!");
+        return;
+      }
+      isScanning = !isScanning;
+      const btn = document.getElementById('toggleScanBtn');
+      
+      if (isScanning) {
+        btn.innerText = "Stop Inspection";
+        btn.style.background = "var(--danger)";
+        scanInterval = setInterval(inspectFrame, 500);
+      } else {
+        btn.innerText = "Start Inspection";
+        btn.style.background = "var(--success)";
+        clearInterval(scanInterval);
+        liveStatus.className = "status-badge status-pass";
+        liveStatus.innerText = "STATUS: STANDBY";
+      }
+    }
+
+    function inspectFrame() {
+      if (!video.videoWidth) return;
+
+      procCtx.drawImage(video, 0, 0, procCanvas.width, procCanvas.height);
+      const currentData = procCtx.getImageData(0, 0, procCanvas.width, procCanvas.height);
+      
+      const diffScore = calculatePixelDiff(referenceImageData.data, currentData.data);
+      const threshold = parseFloat(sensitivityInput.value);
+
+      if (diffScore > threshold) {
+        liveStatus.className = "status-badge status-fail";
+        liveStatus.innerText = `DEFECT DETECTED (${diffScore.toFixed(1)}% Diff)`;
+
+        if (!cooldown) {
+          logDefect(diffScore);
+          cooldown = true;
+          setTimeout(() => { cooldown = false; }, 2500);
+        }
+      } else {
+        liveStatus.className = "status-badge status-pass";
+        liveStatus.innerText = `PASS (${diffScore.toFixed(1)}% Diff)`;
+      }
+    }
+
+    function calculatePixelDiff(ref, current) {
+      let totalDiff = 0;
+      const length = ref.length;
+
+      for (let i = 0; i < length; i += 4) {
+        const rDiff = Math.abs(ref[i] - current[i]);
+        const gDiff = Math.abs(ref[i+1] - current[i+1]);
+        const bDiff = Math.abs(ref[i+2] - current[i+2]);
+
+        totalDiff += (rDiff + gDiff + bDiff) / 3;
+      }
+
+      const pixelCount = length / 4;
+      const maxPossibleDiff = pixelCount * 255;
+      return (totalDiff / maxPossibleDiff) * 100;
+    }
+
+    function logDefect(score) {
+      defectCount++;
+      document.getElementById('defectCount').innerText = defectCount;
+
+      const timeStr = new Date().toLocaleTimeString();
+      const snapshotUrl = procCanvas.toDataURL('image/jpeg');
+
+      if (defectCount === 1) logList.innerHTML = '';
+
+      const logItem = document.createElement('div');
+      logItem.className = 'log-item';
+      logItem.innerHTML = `
+        <img src="${snapshotUrl}" alt="Defect Snapshot"/>
+        <div class="log-info">
+          <strong>Defect #${defectCount}</strong> - ${timeStr}<br/>
+          <span style="color:var(--danger)">Deviation: ${score.toFixed(1)}%</span>
+        </div>
+      `;
+      logList.insertBefore(logItem, logList.firstChild);
+    }
+
+    function resetCount() {
+      defectCount = 0;
+      document.getElementById('defectCount').innerText = '0';
+      logList.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted);">No non-matching items recorded yet.</div>';
+    }
+
+    window.onload = () => startCamera('environment');
+  </script>
+</body>
+</html>
