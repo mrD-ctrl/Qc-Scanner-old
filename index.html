@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>High-Speed Industrial Line Inspector</title>
+  <title>High-Speed Line Inspector (Multi-Sample Target)</title>
   <style>
     :root {
       --bg-color: #0f172a;
@@ -37,7 +37,6 @@
     .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     button, input[type="file"] { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
     input[type="file"] { display: none; }
-    .file-label { background: #475569; padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
     
     .status-badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 6px; width: 100%; text-align: center; }
     .status-pass { background: var(--success); }
@@ -48,7 +47,10 @@
     .slider-group { margin-top: 8px; font-size: 0.75rem; display: flex; align-items: center; gap: 8px; }
     .slider-group input { flex-grow: 1; }
 
-    .log-list { max-height: 250px; overflow-y: auto; margin-top: 8px; }
+    .sample-strip { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; padding-bottom: 4px; }
+    .sample-thumb { width: 50px; height: 50px; border-radius: 4px; border: 1px solid var(--accent); object-fit: cover; }
+
+    .log-list { max-height: 220px; overflow-y: auto; margin-top: 8px; }
     .log-item { display: flex; gap: 12px; background: #090d16; padding: 8px; border-radius: 6px; margin-bottom: 6px; border-left: 4px solid var(--danger); align-items: center; }
     .log-item img { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; }
     .log-info { font-size: 0.78rem; }
@@ -58,12 +60,12 @@
 
   <header>
     <div>
-      <h1>High-Speed Line Inspector</h1>
-      <p style="font-size: 0.7rem; color: var(--text-muted);">Real-time high-speed anomaly scanner</p>
+      <h1>Multi-Target Line Inspector</h1>
+      <p style="font-size: 0.7rem; color: var(--text-muted);">Dynamic multi-sample detection for tight pack spacing</p>
     </div>
     
     <div class="header-actions">
-      <button id="muteBtn" onclick="toggleMute()" style="background: #475569;">🔊 Sound: MAX</button>
+      <button id="muteBtn" onclick="toggleMute()" style="background: #475569;">🔊 Alarm: MAX</button>
       <div class="counter-box">
         <div style="font-size: 0.65rem;">DEFECT COUNT</div>
         <div id="defectCount" class="counter-val">0</div>
@@ -84,13 +86,13 @@
       </div>
 
       <div class="slider-group">
-        <label>Product Sensitivity (Defect):</label>
-        <input type="range" id="sensitivity" min="5" max="40" value="15">
-        <span id="sensVal">15%</span>
+        <label>Defect Sensitivity:</label>
+        <input type="range" id="sensitivity" min="5" max="40" value="18">
+        <span id="sensVal">18%</span>
       </div>
 
       <div class="slider-group">
-        <label>Object Trigger (Belt Filter):</label>
+        <label>Belt Trigger:</label>
         <input type="range" id="presenceSens" min="3" max="30" value="8">
         <span id="presenceVal">8%</span>
       </div>
@@ -99,12 +101,14 @@
     </div>
 
     <div class="card">
-      <h2>Reference Calibration</h2>
+      <h2>Good Target Bank (<span id="sampleCount">0</span> Samples)</h2>
       
       <div style="display: flex; gap: 8px;">
         <div style="flex: 1; text-align: center;">
-          <p style="font-size: 0.7rem; margin-bottom: 4px; color: var(--accent);">Target Product</p>
-          <canvas id="refCanvas" width="120" height="120"></canvas>
+          <p style="font-size: 0.7rem; margin-bottom: 4px; color: var(--accent);">Target Samples</p>
+          <div id="sampleStrip" class="sample-strip">
+            <span style="font-size:0.7rem; color:var(--text-muted);">No samples added</span>
+          </div>
         </div>
         <div style="flex: 1; text-align: center;">
           <p style="font-size: 0.7rem; margin-bottom: 4px; color: var(--text-muted);">Empty Belt</p>
@@ -113,13 +117,12 @@
       </div>
       
       <div class="controls" style="margin-top: 10px;">
-        <button onclick="captureTargetFromCamera()" style="background: var(--accent);">1. Set Target Product</button>
+        <button onclick="captureTargetSample()" style="background: var(--accent);">1. Add Good Sample</button>
+        <button onclick="clearTargetSamples()" style="background: var(--danger);">Clear Samples</button>
         <button onclick="captureBeltFromCamera()" style="background: #475569;">2. Set Empty Belt</button>
-        <label class="file-label" for="fileInput">Upload Product Image</label>
-        <input type="file" id="fileInput" accept="image/*" onchange="loadReferenceFromFile(event)">
       </div>
       <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">
-        *Point camera at empty running belt and click "Set Empty Belt" so moving belt background is ignored.
+        *Tap <b>"Add Good Sample"</b> 3 to 5 times as different good boxes pass under the camera to build an acceptable variation range.
       </p>
     </div>
   </div>
@@ -135,8 +138,6 @@
 
   <script>
     const video = document.getElementById('webcam');
-    const refCanvas = document.getElementById('refCanvas');
-    const refCtx = refCanvas.getContext('2d');
     const beltCanvas = document.getElementById('beltCanvas');
     const beltCtx = beltCanvas.getContext('2d');
     const procCanvas = document.getElementById('procCanvas');
@@ -150,12 +151,18 @@
     const liveStatus = document.getElementById('liveStatus');
     const logList = document.getElementById('logList');
     const muteBtn = document.getElementById('muteBtn');
+    const sampleStrip = document.getElementById('sampleStrip');
+    const sampleCountDisplay = document.getElementById('sampleCount');
 
     let isScanning = false;
     let defectCount = 0;
-    let refImageData = null;
+    
+    // Array to store multiple good target samples
+    let targetSamples = []; 
     let beltImageData = null;
+    
     let isProductInZone = false;
+    let previousPresenceScore = 0;
     let isMuted = false;
     let animationFrameId = null;
 
@@ -170,22 +177,22 @@
       const gain = audioCtx.createGain();
 
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(1200, now);
-      osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+      osc.frequency.setValueAtTime(1400, now);
+      osc.frequency.exponentialRampToValueAtTime(700, now + 0.18);
 
       gain.gain.setValueAtTime(1.0, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
 
       osc.connect(gain);
       gain.connect(audioCtx.destination);
 
       osc.start(now);
-      osc.stop(now + 0.15);
+      osc.stop(now + 0.18);
     }
 
     function toggleMute() {
       isMuted = !isMuted;
-      muteBtn.innerText = isMuted ? "🔇 Sound: OFF" : "🔊 Sound: MAX";
+      muteBtn.innerText = isMuted ? "🔇 Alarm: OFF" : "🔊 Alarm: MAX";
       muteBtn.style.background = isMuted ? "var(--danger)" : "#475569";
     }
 
@@ -205,33 +212,40 @@
       }
     }
 
-    function captureTargetFromCamera() {
-      refCtx.drawImage(video, 0, 0, refCanvas.width, refCanvas.height);
-      refImageData = refCtx.getImageData(0, 0, refCanvas.width, refCanvas.height);
-      alert("Target Product Reference Saved.");
+    function captureTargetSample() {
+      const c = document.createElement('canvas');
+      c.width = 120; c.height = 120;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(video, 0, 0, 120, 120);
+      const imgData = ctx.getImageData(0, 0, 120, 120);
+
+      targetSamples.push(imgData);
+
+      // Render thumbnail preview
+      if (targetSamples.length === 1) sampleStrip.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = c.toDataURL('image/jpeg');
+      img.className = 'sample-thumb';
+      sampleStrip.appendChild(img);
+
+      sampleCountDisplay.innerText = targetSamples.length;
+    }
+
+    function clearTargetSamples() {
+      targetSamples = [];
+      sampleStrip.innerHTML = '<span style="font-size:0.7rem; color:var(--text-muted);">No samples added</span>';
+      sampleCountDisplay.innerText = '0';
     }
 
     function captureBeltFromCamera() {
       beltCtx.drawImage(video, 0, 0, beltCanvas.width, beltCanvas.height);
       beltImageData = beltCtx.getImageData(0, 0, beltCanvas.width, beltCanvas.height);
-      alert("Empty Belt Reference Saved.");
-    }
-
-    function loadReferenceFromFile(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const img = new Image();
-      img.onload = () => {
-        refCtx.clearRect(0, 0, refCanvas.width, refCanvas.height);
-        refCtx.drawImage(img, 0, 0, refCanvas.width, refCanvas.height);
-        refImageData = refCtx.getImageData(0, 0, refCanvas.width, refCanvas.height);
-      };
-      img.src = URL.createObjectURL(file);
+      alert("Empty Belt Baseline Saved.");
     }
 
     function toggleScanning() {
-      if (!refImageData) {
-        alert("Set Target Product Reference first!");
+      if (targetSamples.length === 0) {
+        alert("Add at least ONE Good Target Sample first!");
         return;
       }
       isScanning = !isScanning;
@@ -257,8 +271,13 @@
         procCtx.drawImage(video, 0, 0, procCanvas.width, procCanvas.height);
         const currentData = procCtx.getImageData(0, 0, procCanvas.width, procCanvas.height);
         
+        // Compute presence score relative to empty belt baseline
         let objectPresenceScore = beltImageData ? calculatePixelDiff(beltImageData.data, currentData.data) : 20;
         const objectTrigger = parseFloat(presenceInput.value);
+
+        // Gap detection logic: Check frame-to-frame delta to identify seam gaps between closely spaced boxes
+        const frameDelta = Math.abs(objectPresenceScore - previousPresenceScore);
+        previousPresenceScore = objectPresenceScore;
 
         if (objectPresenceScore < objectTrigger) {
           liveStatus.className = "status-badge status-empty";
@@ -266,21 +285,32 @@
           isProductInZone = false;
         } 
         else {
-          const defectScore = calculatePixelDiff(refImageData.data, currentData.data);
+          // If a sharp transition occurs while in zone, force re-trigger for the next pack
+          if (frameDelta > 12.0) {
+            isProductInZone = false;
+          }
+
+          // Evaluate current frame against ALL saved target samples (best-match approach)
+          let minDiff = 999;
+          for (let i = 0; i < targetSamples.length; i++) {
+            const diff = calculatePixelDiff(targetSamples[i].data, currentData.data);
+            if (diff < minDiff) minDiff = diff;
+          }
+
           const defectThreshold = parseFloat(sensitivityInput.value);
 
-          if (defectScore > defectThreshold) {
+          if (minDiff > defectThreshold) {
             liveStatus.className = "status-badge status-fail";
-            liveStatus.innerText = `DEFECT DETECTED (${defectScore.toFixed(1)}% Diff)`;
+            liveStatus.innerText = `DEFECT DETECTED (${minDiff.toFixed(1)}% Diff)`;
 
             if (!isProductInZone) {
               triggerHighDecibelAlarm();
-              logDefect(defectScore);
+              logDefect(minDiff);
               isProductInZone = true;
             }
           } else {
             liveStatus.className = "status-badge status-pass";
-            liveStatus.innerText = `PASS (${defectScore.toFixed(1)}% Diff)`;
+            liveStatus.innerText = `PASS (${minDiff.toFixed(1)}% Diff)`;
             isProductInZone = true;
           }
         }
