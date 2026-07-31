@@ -6,7 +6,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
-  <title>Universal Line Inspector V2.2 — Working Fast Burst</title>
+  <title>Universal Line Inspector V2.3 — Immediate Inspection</title>
 
   <style>
     :root {
@@ -789,9 +789,9 @@
 
     // Fast burst inspection.
     const FAST_PROCESS_INTERVAL_MS = 42;
-    const FAST_CONFIRM_FRAMES = 2;
+    const FAST_CONFIRM_FRAMES = 1;
     const MAX_BURST_FRAMES = 3;
-    const MAX_INSPECTION_WAIT_MS = 240;
+    const MAX_INSPECTION_WAIT_MS = 90;
     const BORDERLINE_MARGIN = 3.5;
     const MIN_SHARPNESS_SCORE = 3.5;
     const MIN_CAPTURED_VIDEO_FRAMES = 3;
@@ -1233,6 +1233,11 @@
 
       if (videoCaptureMode) return;
 
+      if (scanning) {
+        alert("Stop live inspection before recording calibration video.");
+        return;
+      }
+
       const durationMs = Number(videoRecordSeconds.value) * 1000;
       const keepLimit = Number(maxVideoFrames.value);
       const allFrames = [];
@@ -1247,7 +1252,7 @@
       recordBadVideoBtn.disabled = true;
 
       videoCalibrationStatus.textContent =
-        `Recording ${mode}: 0 frames captured…`;
+        `RECORDING ${mode.toUpperCase()} — capturing reference frames…`;
 
       await new Promise(resolve => {
         const capture = () => {
@@ -2052,7 +2057,10 @@
         const track = tracks.get(trackId);
         track.missedFrames += 1;
 
-        if (track.missedFrames > TRACK_MAX_MISSED_FRAMES) {
+        if (
+          track.missedFrames > TRACK_MAX_MISSED_FRAMES &&
+          !track.processing
+        ) {
           tracks.delete(trackId);
         }
       }
@@ -2762,7 +2770,8 @@
       if (track.inspected || track.processing) return;
 
       track.processing = true;
-      fastTrackStatus.textContent = `ID ${track.id}`;
+      const productId = track.id;
+      fastTrackStatus.textContent = `ID ${productId}`;
 
       const decisionStartedAt = performance.now();
 
@@ -2824,7 +2833,7 @@
           passItem.innerHTML = `
             <img src="${passImageURL}" alt="Passed product snapshot" />
             <div class="log-info">
-              <strong style="color:#4ade80">PASS · Product ID ${track.id}</strong><br />
+              <strong style="color:#4ade80">PASS · Product ID ${productId}</strong><br />
               ${new Date().toLocaleTimeString()}<br />
               ${track.result.reason}<br />
               Good difference:
@@ -2855,7 +2864,7 @@
         item.innerHTML = `
           <img src="${imageURL}" alt="Rejected product snapshot" />
           <div class="log-info">
-            <strong>Reject #${rejectCount} · Product ID ${track.id}</strong><br />
+            <strong>Reject #${rejectCount} · Product ID ${productId}</strong><br />
             ${new Date().toLocaleTimeString()}<br />
             <span style="color:#f87171">${track.result.reason}</span><br />
             Good difference:
@@ -2887,27 +2896,19 @@
       const now = performance.now();
 
       for (const track of trackList) {
-        if (track.inspected || track.processing || track.missedFrames > 0) {
-          continue;
-        }
+        if (track.inspected || track.processing) continue;
 
         const createdAt = Number.isFinite(track.createdAt)
           ? track.createdAt
-          : track.lastSeenAt - MAX_INSPECTION_WAIT_MS;
+          : now;
 
         const ageMs = now - createdAt;
-        const burstLength = Array.isArray(track.burstFrames)
-          ? track.burstFrames.length
-          : 0;
+        const hasFrame =
+          Array.isArray(track.burstFrames) &&
+          track.burstFrames.length >= 1;
 
-        const enoughFrames = burstLength >= FAST_CONFIRM_FRAMES;
-        const deadlineReached = ageMs >= MAX_INSPECTION_WAIT_MS;
-
-        if (!enoughFrames && !deadlineReached) continue;
-
-        if (!track.resemblesProduct && !track.solidUnknownObject) {
-          continue;
-        }
+        if (!hasFrame && ageMs < MAX_INSPECTION_WAIT_MS) continue;
+        if (!track.resemblesProduct && !track.solidUnknownObject) continue;
 
         void logRejectForTrack(track);
       }
@@ -3076,7 +3077,7 @@
       if (!name?.trim()) return;
 
       const saved = {
-        version: 7,
+        version: 8,
         name: name.trim(),
         savedAt: new Date().toISOString(),
         roi: { ...ROI },
@@ -3126,7 +3127,7 @@
       try {
         const saved = JSON.parse(raw);
 
-        if (saved.version !== 7) {
+        if (saved.version !== 8) {
           alert(
             "This saved calibration uses the older inspection engine. " +
             "Please capture the samples again and recalibrate for smart " +
@@ -3197,6 +3198,42 @@
     });
 
     scanBtn.addEventListener("click", toggleScanning);
+
+    rearCamBtn.addEventListener("click", () => {
+      void startCamera("environment");
+    });
+
+    frontCamBtn.addEventListener("click", () => {
+      void startCamera("user");
+    });
+
+    fullscreenCameraBtn.addEventListener("click", toggleCameraFullscreen);
+
+    roiFullBtn.addEventListener("click", () => setRoiPreset("full"));
+    roiVerticalBtn.addEventListener("click", () => setRoiPreset("vertical"));
+    roiHorizontalBtn.addEventListener("click", () => setRoiPreset("horizontal"));
+
+    recordBeltVideoBtn.addEventListener("click", () => {
+      void recordReferenceFrames("belt");
+    });
+
+    recordGoodVideoBtn.addEventListener("click", () => {
+      void recordReferenceFrames("good");
+    });
+
+    recordBadVideoBtn.addEventListener("click", () => {
+      void recordReferenceFrames("bad");
+    });
+
+    stopVideoRecordBtn.addEventListener("click", stopReferenceRecording);
+
+    videoRecordSeconds.addEventListener("input", () => {
+      videoRecordSecondsValue.textContent = `${videoRecordSeconds.value}s`;
+    });
+
+    maxVideoFrames.addEventListener("input", () => {
+      maxVideoFramesValue.textContent = maxVideoFrames.value;
+    });
     muteBtn.addEventListener("click", toggleMute);
     resetRejectBtn.addEventListener("click", resetRejectCount);
 
