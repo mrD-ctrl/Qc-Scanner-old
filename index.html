@@ -6,7 +6,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
-  <title>Universal Line Inspector V2 — Full Sensor</title>
+  <title>Universal Line Inspector V2.1 — Fast Burst & Video Calibration</title>
 
   <style>
     :root {
@@ -410,6 +410,35 @@
   
     .roi-presets { margin-top:10px; flex-wrap:wrap; }
     .roi-presets button { flex:1 1 150px; }
+  
+    .mini-stats {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:8px;
+      margin:10px 0;
+    }
+
+    .mini-stats div {
+      background:#0f172a;
+      border:1px solid #334155;
+      border-radius:10px;
+      padding:9px;
+      text-align:center;
+    }
+
+    .mini-stats strong {
+      display:block;
+      font-size:16px;
+      color:#60a5fa;
+    }
+
+    .mini-stats span {
+      display:block;
+      margin-top:3px;
+      color:#94a3b8;
+      font-size:11px;
+    }
+
   </style>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
@@ -452,9 +481,9 @@
       </div>
 
       <p class="helper">
-        The full camera sensor is displayed and processed without forced 16:9
-        cropping. Select the ROI that matches your conveyor direction, then
-        recalibrate with the camera fixed in that position.
+        The full camera sensor is displayed without forced cropping. Fast burst mode
+        inspects after two usable frames or within 240 ms. Video calibration
+        automatically keeps only sharp, varied reference frames.
       </p>
 
       <div class="controls roi-presets">
@@ -522,6 +551,39 @@
       </div>
     </section>
 
+
+
+    <section class="card">
+      <h2>Video-Assisted Calibration</h2>
+
+      <p class="helper">
+        Record short clips to automatically extract sharp and varied reference frames.
+        The full video is not used during live inspection, keeping the system fast.
+      </p>
+
+      <div class="controls">
+        <button id="recordBeltVideoBtn" class="secondary">Record Belt Video</button>
+        <button id="recordGoodVideoBtn" class="success">Record Good Video</button>
+        <button id="recordBadVideoBtn" class="danger">Record Reject Video</button>
+        <button id="stopVideoRecordBtn" class="secondary" disabled>Stop Recording</button>
+      </div>
+
+      <div class="slider-row">
+        <label for="videoRecordSeconds">Recording length</label>
+        <input id="videoRecordSeconds" type="range" min="2" max="8" value="4" />
+        <span id="videoRecordSecondsValue">4s</span>
+      </div>
+
+      <div class="slider-row">
+        <label for="maxVideoFrames">Frames to keep</label>
+        <input id="maxVideoFrames" type="range" min="6" max="30" value="16" />
+        <span id="maxVideoFramesValue">16</span>
+      </div>
+
+      <p id="videoCalibrationStatus" class="helper">
+        Ready to record a short reference clip.
+      </p>
+    </section>
 
     <section class="card">
       <h2>Required Text & Artwork Zones</h2>
@@ -725,6 +787,15 @@
     const MAX_PASS_DIFFERENCE = 16;
     const MIN_GOOD_BAD_SEPARATION = 1.5;
 
+    // Fast burst inspection.
+    const FAST_PROCESS_INTERVAL_MS = 42;
+    const FAST_CONFIRM_FRAMES = 2;
+    const MAX_BURST_FRAMES = 3;
+    const MAX_INSPECTION_WAIT_MS = 240;
+    const BORDERLINE_MARGIN = 3.5;
+    const MIN_SHARPNESS_SCORE = 8.5;
+
+
     const video = document.getElementById("webcam");
     const stage = document.getElementById("stage");
     const displayCanvas = document.getElementById("displayCanvas");
@@ -750,6 +821,18 @@
     const roiFullBtn = document.getElementById("roiFullBtn");
     const roiVerticalBtn = document.getElementById("roiVerticalBtn");
     const roiHorizontalBtn = document.getElementById("roiHorizontalBtn");
+    const recordBeltVideoBtn = document.getElementById("recordBeltVideoBtn");
+    const recordGoodVideoBtn = document.getElementById("recordGoodVideoBtn");
+    const recordBadVideoBtn = document.getElementById("recordBadVideoBtn");
+    const stopVideoRecordBtn = document.getElementById("stopVideoRecordBtn");
+    const videoRecordSeconds = document.getElementById("videoRecordSeconds");
+    const videoRecordSecondsValue = document.getElementById("videoRecordSecondsValue");
+    const maxVideoFrames = document.getElementById("maxVideoFrames");
+    const maxVideoFramesValue = document.getElementById("maxVideoFramesValue");
+    const videoCalibrationStatus = document.getElementById("videoCalibrationStatus");
+    const fastTrackStatus = document.getElementById("fastTrackStatus");
+    const burstFrameCount = document.getElementById("burstFrameCount");
+    const inspectionLatency = document.getElementById("inspectionLatency");
     const liveStatus = document.getElementById("liveStatus");
     const muteBtn = document.getElementById("muteBtn");
     const resetRejectBtn = document.getElementById("resetRejectBtn");
@@ -791,6 +874,11 @@
     let ocrWorker = null;
     let ocrReady = false;
     let ocrLoadingPromise = null;
+
+    let videoCaptureTimer = null;
+    let videoCaptureMode = null;
+    let videoCaptureCancelled = false;
+
     let tracks = new Map();
     let nextTrackId = 1;
     let lastProcessTime = 0;
@@ -1082,6 +1170,161 @@
       return referenceCanvas.toDataURL("image/jpeg", 0.84);
     }
 
+
+
+    function calculateSharpness(imageData) {
+      const { width, height, data } = imageData;
+      let total = 0;
+      let count = 0;
+
+      for (let y = 1; y < height - 1; y += 2) {
+        for (let x = 1; x < width - 1; x += 2) {
+          const index = (y * width + x) * 4;
+          const left = (y * width + x - 1) * 4;
+          const right = (y * width + x + 1) * 4;
+          const top = ((y - 1) * width + x) * 4;
+          const bottom = ((y + 1) * width + x) * 4;
+
+          const gray = 0.299 * data[index] + 0.587 * data[index + 1] + 0.114 * data[index + 2];
+          const grayLeft = 0.299 * data[left] + 0.587 * data[left + 1] + 0.114 * data[left + 2];
+          const grayRight = 0.299 * data[right] + 0.587 * data[right + 1] + 0.114 * data[right + 2];
+          const grayTop = 0.299 * data[top] + 0.587 * data[top + 1] + 0.114 * data[top + 2];
+          const grayBottom = 0.299 * data[bottom] + 0.587 * data[bottom + 1] + 0.114 * data[bottom + 2];
+
+          const laplacian =
+            4 * gray - grayLeft - grayRight - grayTop - grayBottom;
+
+          total += laplacian * laplacian;
+          count++;
+        }
+      }
+
+      return count ? Math.sqrt(total / count) : 0;
+    }
+
+    function frameDiversityDifference(a, b) {
+      if (!a?.feature || !b?.feature) return 100;
+      return featureDifference(a.feature, b.feature);
+    }
+
+    function isDiverseEnough(candidate, selected, minimumDifference = 3.0) {
+      return selected.every(
+        existing => frameDiversityDifference(candidate, existing) >= minimumDifference
+      );
+    }
+
+    function captureCurrentReferenceFrame() {
+      const imageData = getLiveROIImageData();
+      return {
+        imageData,
+        feature: createFeatureVector(imageData),
+        thumbnail: imageDataToDataURL(imageData),
+        sharpness: calculateSharpness(imageData),
+        capturedAt: performance.now()
+      };
+    }
+
+    async function recordReferenceFrames(mode) {
+      if (!cameraStream) {
+        alert("Start the camera first.");
+        return;
+      }
+
+      if (videoCaptureMode) return;
+
+      const durationMs = Number(videoRecordSeconds.value) * 1000;
+      const keepLimit = Number(maxVideoFrames.value);
+      const candidates = [];
+      const startTime = performance.now();
+
+      videoCaptureMode = mode;
+      videoCaptureCancelled = false;
+      stopVideoRecordBtn.disabled = false;
+      recordBeltVideoBtn.disabled = true;
+      recordGoodVideoBtn.disabled = true;
+      recordBadVideoBtn.disabled = true;
+
+      videoCalibrationStatus.textContent =
+        `Recording ${mode} reference frames…`;
+
+      await new Promise(resolve => {
+        const capture = () => {
+          if (videoCaptureCancelled || performance.now() - startTime >= durationMs) {
+            resolve();
+            return;
+          }
+
+          try {
+            const frame = captureCurrentReferenceFrame();
+            if (frame.sharpness >= MIN_SHARPNESS_SCORE) {
+              candidates.push(frame);
+            }
+          } catch (error) {
+            console.warn("Reference frame skipped:", error);
+          }
+
+          videoCaptureTimer = setTimeout(capture, 90);
+        };
+
+        capture();
+      });
+
+      videoCaptureTimer = null;
+      videoCaptureMode = null;
+      stopVideoRecordBtn.disabled = true;
+      recordBeltVideoBtn.disabled = false;
+      recordGoodVideoBtn.disabled = false;
+      recordBadVideoBtn.disabled = false;
+
+      candidates.sort((a, b) => b.sharpness - a.sharpness);
+
+      const selected = [];
+      for (const candidate of candidates) {
+        if (selected.length >= keepLimit) break;
+
+        if (
+          selected.length === 0 ||
+          isDiverseEnough(candidate, selected, mode === "belt" ? 1.5 : 2.5)
+        ) {
+          selected.push(candidate);
+        }
+      }
+
+      if (!selected.length) {
+        videoCalibrationStatus.textContent =
+          "No sharp frames were captured. Improve lighting or hold the camera steady.";
+        return;
+      }
+
+      const target =
+        mode === "belt"
+          ? beltSamples
+          : mode === "good"
+            ? goodSamples
+            : badSamples;
+
+      for (const frame of selected) {
+        target.push({
+          imageData: frame.imageData,
+          feature: frame.feature,
+          thumbnail: frame.thumbnail
+        });
+      }
+
+      renderSampleStrips();
+      calibrated = false;
+
+      videoCalibrationStatus.textContent =
+        `Added ${selected.length} sharp, varied ${mode} reference frames. Recalibrate before inspection.`;
+    }
+
+    function stopReferenceRecording() {
+      videoCaptureCancelled = true;
+      if (videoCaptureTimer) {
+        clearTimeout(videoCaptureTimer);
+        videoCaptureTimer = null;
+      }
+    }
 
     function createFeatureVector(imageData, mask = null) {
       const { width, height, data } = imageData;
@@ -2315,19 +2558,18 @@
       };
     }
 
-    async function inspectObject(objectImageData) {
+    async function inspectObject(objectImageData, options = {}) {
       try {
         if (!objectImageData || !goodSamples.length) {
           return {
             rejected: true,
             nearestGood: 100,
             nearestBad: Number.POSITIVE_INFINITY,
-            goodIndex: -1,
-            badIndex: -1,
             reason: "No valid good reference available"
           };
         }
 
+        const allowDetailedChecks = options.allowDetailedChecks !== false;
         const orientation = orientationCheckAgainstGood(objectImageData);
         const currentFeature = orientation.normalFeature;
         const goodMatch = orientation.normalMatch;
@@ -2345,9 +2587,6 @@
         const nearestGood = goodMatch.difference;
         const nearestBad = badMatch.difference;
 
-        // Hard orientation veto: if rotating the detected product by 180°
-        // makes it significantly closer to the upright good reference,
-        // the live product is upside down.
         if (orientation.likelyUpsideDown) {
           return {
             rejected: true,
@@ -2355,12 +2594,10 @@
             nearestBad,
             goodIndex: goodMatch.index,
             badIndex: badMatch.index,
-            reason:
-              "Upside-down orientation detected — rotated view matches the good reference better"
+            reason: "Upside-down orientation detected"
           };
         }
 
-        // A trained reject always gets checked before PASS.
         const badClearlyCloser =
           badSamples.length > 0 &&
           nearestBad + BAD_VETO_MARGIN < nearestGood;
@@ -2377,68 +2614,84 @@
             nearestBad,
             goodIndex: goodMatch.index,
             badIndex: badMatch.index,
-            reason: "Matches a trained reject: wrong product, artwork or orientation"
+            reason: "Matches a trained reject"
           };
         }
 
-        // PASS is allowed only when the product is positively close to a good
-        // reference and is not almost equally close to a known reject.
-        const positivelyMatchesGood = nearestGood <= failLimit;
-        const clearlySeparatedFromBad =
-          !Number.isFinite(nearestBad) ||
-          nearestBad - nearestGood >= MIN_GOOD_BAD_SEPARATION;
+        const clearlyGood =
+          nearestGood <= Math.max(4, failLimit - BORDERLINE_MARGIN);
 
-        if (!positivelyMatchesGood || !clearlySeparatedFromBad) {
+        const clearlyUnknown =
+          nearestGood > failLimit + BORDERLINE_MARGIN;
+
+        if (clearlyUnknown) {
           return {
             rejected: true,
             nearestGood,
             nearestBad,
             goodIndex: goodMatch.index,
             badIndex: badMatch.index,
-            reason:
-              !positivelyMatchesGood
-                ? "Unknown object or product does not closely match the accepted good sample"
-                : "Ambiguous match — too similar to a known reject"
+            reason: "Unknown object or product mismatch"
           };
         }
 
-        const zoneResult = await evaluateInspectionZones(
-          objectImageData,
-          goodMatch.index
-        );
-
-        if (zoneResult.failed) {
+        if (clearlyGood && !inspectionZones.length) {
           return {
-            rejected: true,
+            rejected: false,
             nearestGood,
             nearestBad,
             goodIndex: goodMatch.index,
             badIndex: badMatch.index,
-            reason: zoneResult.reasons.join("; "),
-            zoneDetails: zoneResult.details
+            reason: "Fast confirmed good match"
+          };
+        }
+
+        // Detailed artwork/OCR is reserved for borderline products or
+        // products that have configured mandatory zones.
+        if (allowDetailedChecks) {
+          const zoneResult = await evaluateInspectionZones(
+            objectImageData,
+            goodMatch.index
+          );
+
+          if (zoneResult.failed) {
+            return {
+              rejected: true,
+              nearestGood,
+              nearestBad,
+              goodIndex: goodMatch.index,
+              badIndex: badMatch.index,
+              reason: zoneResult.reasons.join("; "),
+              zoneDetails: zoneResult.details
+            };
+          }
+        }
+
+        if (nearestGood <= failLimit) {
+          return {
+            rejected: false,
+            nearestGood,
+            nearestBad,
+            goodIndex: goodMatch.index,
+            badIndex: badMatch.index,
+            reason: "Confirmed good after detailed check"
           };
         }
 
         return {
-          rejected: false,
+          rejected: true,
           nearestGood,
           nearestBad,
           goodIndex: goodMatch.index,
           badIndex: badMatch.index,
-          reason:
-            "Confirmed match to accepted good artwork, orientation, text and graphics",
-          zoneDetails: zoneResult.details
+          reason: "Borderline product failed strict good-match confirmation"
         };
       } catch (error) {
         console.error("Inspection decision error:", error);
-
-        // Fail safe: processing errors must never silently become PASS.
         return {
           rejected: true,
           nearestGood: 100,
           nearestBad: Number.POSITIVE_INFINITY,
-          goodIndex: -1,
-          badIndex: -1,
           reason: `Inspection error — fail-safe reject: ${error.message}`
         };
       }
@@ -2448,21 +2701,65 @@
       if (track.inspected || track.processing) return;
 
       track.processing = true;
+      fastTrackStatus.textContent = `ID ${track.id}`;
+
+      const decisionStartedAt = performance.now();
 
       try {
-        const imageData = track.imageData;
+        const burst =
+          Array.isArray(track.burstFrames) && track.burstFrames.length
+            ? [...track.burstFrames]
+            : [{
+                imageData: track.candidateImage,
+                sharpness: calculateSharpness(track.candidateImage)
+              }];
 
-        // Await the asynchronous OCR/artwork decision. The previous version
-        // accidentally stored the Promise itself and treated it like PASS.
-        track.result = await inspectObject(imageData);
+        burst.sort((a, b) => b.sharpness - a.sharpness);
+        burstFrameCount.textContent = String(burst.length);
+
+        const results = [];
+
+        // Evaluate the sharpest frames first. Detailed OCR/artwork is only
+        // allowed on the sharpest frame to protect speed.
+        for (let index = 0; index < burst.length; index++) {
+          const result = await inspectObject(
+            burst[index].imageData,
+            { allowDetailedChecks: index === 0 }
+          );
+
+          results.push({
+            ...result,
+            imageData: burst[index].imageData,
+            sharpness: burst[index].sharpness
+          });
+
+          if (!result.rejected) break;
+        }
+
+        const passResults = results.filter(result => !result.rejected);
+
+        if (passResults.length > 0) {
+          track.result = passResults.sort(
+            (a, b) => a.nearestGood - b.nearestGood
+          )[0];
+        } else {
+          track.result = results.sort(
+            (a, b) => a.nearestGood - b.nearestGood
+          )[0];
+        }
+
         track.inspected = true;
+
+        const elapsed = performance.now() - decisionStartedAt;
+        inspectionLatency.textContent = `${Math.round(elapsed)} ms`;
+        fastTrackStatus.textContent = track.result.rejected ? "REJECT" : "PASS";
 
         if (!track.result.rejected) return;
 
         incrementRejectCount();
         triggerAlarm();
 
-        const imageURL = imageDataToDataURL(imageData);
+        const imageURL = imageDataToDataURL(track.result.imageData);
         const item = document.createElement("div");
         item.className = "log-item";
 
@@ -2472,23 +2769,17 @@
             <strong>Reject #${rejectCount} · Product ID ${track.id}</strong><br />
             ${new Date().toLocaleTimeString()}<br />
             <span style="color:#f87171">${track.result.reason}</span><br />
-            Difference from nearest good:
+            Good difference:
             ${Number.isFinite(track.result.nearestGood)
               ? track.result.nearestGood.toFixed(1)
               : "N/A"}%<br />
-            ${
-              Number.isFinite(track.result.nearestBad)
-                ? `Difference from nearest reject: ${track.result.nearestBad.toFixed(1)}%`
-                : "No reject reference used"
-            }
+            Sharpness: ${track.result.sharpness.toFixed(1)}
           </div>
         `;
 
         document.getElementById("logList").prepend(item);
       } catch (error) {
         console.error("Track inspection error:", error);
-
-        // Even unexpected errors are recorded as a fail-safe rejection.
         track.result = {
           rejected: true,
           nearestGood: 100,
@@ -2496,7 +2787,6 @@
           reason: `Track processing error — fail-safe reject: ${error.message}`
         };
         track.inspected = true;
-
         incrementRejectCount();
         triggerAlarm();
       } finally {
@@ -2505,20 +2795,22 @@
     }
 
     function inspectReadyTracks(trackList) {
+      const now = performance.now();
+
       for (const track of trackList) {
         if (track.inspected || track.processing || track.missedFrames > 0) {
           continue;
         }
 
-        if (track.age < TRACK_MIN_AGE_TO_INSPECT) continue;
+        const ageMs = now - (track.createdAt || now);
+        const enoughFrames =
+          Array.isArray(track.burstFrames) &&
+          track.burstFrames.length >= FAST_CONFIRM_FRAMES;
 
-        const requiredFrames =
-          track.requiredConfirmationFrames || REQUIRED_STABLE_FRAMES;
+        const deadlineReached = ageMs >= MAX_INSPECTION_WAIT_MS;
 
-        if (track.stableFrames < requiredFrames) continue;
+        if (!enoughFrames && !deadlineReached) continue;
 
-        // Unknown but solid product-sized objects are intentionally inspected.
-        // Only weak belt texture/background noise is ignored.
         if (!track.resemblesProduct && !track.solidUnknownObject) continue;
 
         void logRejectForTrack(track);
@@ -2570,7 +2862,7 @@
     function scanLoop(timestamp = 0) {
       if (!scanning) return;
 
-      if (timestamp - lastProcessTime < PROCESS_INTERVAL_MS) {
+      if (timestamp - lastProcessTime < FAST_PROCESS_INTERVAL_MS) {
         animationFrameId = requestAnimationFrame(scanLoop);
         return;
       }
@@ -2680,7 +2972,7 @@
       if (!name?.trim()) return;
 
       const saved = {
-        version: 5,
+        version: 6,
         name: name.trim(),
         savedAt: new Date().toISOString(),
         roi: { ...ROI },
@@ -2730,7 +3022,7 @@
       try {
         const saved = JSON.parse(raw);
 
-        if (saved.version !== 5) {
+        if (saved.version !== 6) {
           alert(
             "This saved calibration uses the older inspection engine. " +
             "Please capture the samples again and recalibrate for smart " +
@@ -2757,6 +3049,14 @@
           saved.settings?.presenceThreshold ?? 5;
         beltPixelThreshold.value =
           saved.settings?.beltPixelThreshold ?? 64;
+        videoRecordSeconds.value =
+          saved.settings?.videoRecordSeconds ?? 4;
+        maxVideoFrames.value =
+          saved.settings?.maxVideoFrames ?? 16;
+        videoRecordSecondsValue.textContent =
+          `${videoRecordSeconds.value}s`;
+        maxVideoFramesValue.textContent =
+          maxVideoFrames.value;
 
         updateSliderLabels();
         renderSampleStrips();
