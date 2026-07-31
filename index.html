@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>High-Speed Line Inspector (Multi-Sample Target)</title>
+  <title>High-Speed Dual-Bank Line Inspector</title>
   <style>
     :root {
       --bg-color: #0f172a;
@@ -32,27 +32,28 @@
     .card { background: var(--card-bg); border-radius: 12px; padding: 12px; border: 1px solid #334155; }
     .card h2 { font-size: 0.95rem; margin-bottom: 8px; color: var(--accent); }
 
-    video, canvas, img { width: 100%; height: auto; border-radius: 8px; background: #000; object-fit: contain; max-height: 220px; }
+    video, canvas, img { width: 100%; height: auto; border-radius: 8px; background: #000; object-fit: contain; max-height: 200px; }
     
     .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    button, input[type="file"] { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
-    input[type="file"] { display: none; }
+    button { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
     
     .status-badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 6px; width: 100%; text-align: center; }
     .status-pass { background: var(--success); }
     .status-fail { background: var(--danger); }
     .status-empty { background: #334155; color: var(--text-muted); }
     .status-standby { background: var(--warning); color: #000; }
+    .status-auto { background: #8b5cf6; color: white; }
 
     .slider-group { margin-top: 8px; font-size: 0.75rem; display: flex; align-items: center; gap: 8px; }
     .slider-group input { flex-grow: 1; }
 
-    .sample-strip { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; padding-bottom: 4px; }
-    .sample-thumb { width: 50px; height: 50px; border-radius: 4px; border: 1px solid var(--accent); object-fit: cover; }
+    .sample-strip { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; padding-bottom: 4px; min-height: 52px; align-items: center; }
+    .sample-thumb-good { width: 46px; height: 46px; border-radius: 4px; border: 2px solid var(--success); object-fit: cover; }
+    .sample-thumb-bad { width: 46px; height: 46px; border-radius: 4px; border: 2px solid var(--danger); object-fit: cover; }
 
-    .log-list { max-height: 220px; overflow-y: auto; margin-top: 8px; }
+    .log-list { max-height: 200px; overflow-y: auto; margin-top: 8px; }
     .log-item { display: flex; gap: 12px; background: #090d16; padding: 8px; border-radius: 6px; margin-bottom: 6px; border-left: 4px solid var(--danger); align-items: center; }
-    .log-item img { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; }
+    .log-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 4px; }
     .log-info { font-size: 0.78rem; }
   </style>
 </head>
@@ -60,8 +61,8 @@
 
   <header>
     <div>
-      <h1>Multi-Target Line Inspector</h1>
-      <p style="font-size: 0.7rem; color: var(--text-muted);">Dynamic multi-sample detection for tight pack spacing</p>
+      <h1>Dual-Bank Line Inspector</h1>
+      <p style="font-size: 0.7rem; color: var(--text-muted);">Auto-good sampling & defect profile matching</p>
     </div>
     
     <div class="header-actions">
@@ -75,13 +76,14 @@
   </header>
 
   <div class="grid">
+    <!-- Camera View & Controls -->
     <div class="card">
       <h2>Live Line Camera</h2>
       <video id="webcam" autoplay playsinline muted></video>
       
       <div class="controls">
-        <button onclick="startCamera('environment')">Rear Camera</button>
-        <button onclick="startCamera('user')">Front Camera</button>
+        <button onclick="startCamera('environment')">Rear Cam</button>
+        <button onclick="startCamera('user')">Front Cam</button>
         <button id="toggleScanBtn" onclick="toggleScanning()" style="background: var(--success);">Start Line Inspection</button>
       </div>
 
@@ -100,30 +102,45 @@
       <div id="liveStatus" class="status-badge status-standby">STATUS: STANDBY</div>
     </div>
 
+    <!-- Reference Calibration Panel -->
     <div class="card">
-      <h2>Good Target Bank (<span id="sampleCount">0</span> Samples)</h2>
+      <h2>Calibration & Banks</h2>
       
-      <div style="display: flex; gap: 8px;">
-        <div style="flex: 1; text-align: center;">
-          <p style="font-size: 0.7rem; margin-bottom: 4px; color: var(--accent);">Target Samples</p>
-          <div id="sampleStrip" class="sample-strip">
-            <span style="font-size:0.7rem; color:var(--text-muted);">No samples added</span>
-          </div>
+      <!-- Good Target Bank -->
+      <div style="margin-bottom: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong style="font-size: 0.78rem; color: var(--success);">Good Targets (<span id="goodCount">0</span>)</strong>
+          <button onclick="startAutoGoodCapture()" style="background: #8b5cf6; padding: 4px 8px; font-size: 0.7rem;">⚡ Auto-Learn 5 Good</button>
         </div>
-        <div style="flex: 1; text-align: center;">
-          <p style="font-size: 0.7rem; margin-bottom: 4px; color: var(--text-muted);">Empty Belt</p>
-          <canvas id="beltCanvas" width="120" height="120"></canvas>
+        <div id="goodStrip" class="sample-strip">
+          <span style="font-size:0.7rem; color:var(--text-muted);">No good samples added</span>
+        </div>
+        <div class="controls" style="margin-top: 4px;">
+          <button onclick="captureGoodSample()" style="background: var(--success); font-size: 0.75rem;">+ Add Good (Manual)</button>
+          <button onclick="clearGoodSamples()" style="background: #475569; font-size: 0.75rem;">Clear Good</button>
         </div>
       </div>
-      
-      <div class="controls" style="margin-top: 10px;">
-        <button onclick="captureTargetSample()" style="background: var(--accent);">1. Add Good Sample</button>
-        <button onclick="clearTargetSamples()" style="background: var(--danger);">Clear Samples</button>
-        <button onclick="captureBeltFromCamera()" style="background: #475569;">2. Set Empty Belt</button>
+
+      <hr style="border: 0; border-top: 1px solid #334155; margin: 8px 0;">
+
+      <!-- Reject Defect Bank -->
+      <div>
+        <strong style="font-size: 0.78rem; color: var(--danger);">Known Defects / Rejects (<span id="badCount">0</span>)</strong>
+        <div id="badStrip" class="sample-strip">
+          <span style="font-size:0.7rem; color:var(--text-muted);">No defect samples added</span>
+        </div>
+        <div class="controls" style="margin-top: 4px;">
+          <button onclick="captureBadSample()" style="background: var(--danger); font-size: 0.75rem;">+ Add Reject/Defect Sample</button>
+          <button onclick="clearBadSamples()" style="background: #475569; font-size: 0.75rem;">Clear Rejects</button>
+        </div>
       </div>
-      <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">
-        *Tap <b>"Add Good Sample"</b> 3 to 5 times as different good boxes pass under the camera to build an acceptable variation range.
-      </p>
+
+      <hr style="border: 0; border-top: 1px solid #334155; margin: 8px 0;">
+
+      <!-- Belt Calibration -->
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <button onclick="captureBeltFromCamera()" style="background: #475569; width: 100%;">Set Empty Belt Reference</button>
+      </div>
     </div>
   </div>
 
@@ -134,6 +151,7 @@
     </div>
   </div>
 
+  <canvas id="beltCanvas" width="120" height="120" style="display:none;"></canvas>
   <canvas id="procCanvas" width="120" height="120" style="display:none;"></canvas>
 
   <script>
@@ -151,14 +169,19 @@
     const liveStatus = document.getElementById('liveStatus');
     const logList = document.getElementById('logList');
     const muteBtn = document.getElementById('muteBtn');
-    const sampleStrip = document.getElementById('sampleStrip');
-    const sampleCountDisplay = document.getElementById('sampleCount');
+    
+    const goodStrip = document.getElementById('goodStrip');
+    const goodCountDisplay = document.getElementById('goodCount');
+    const badStrip = document.getElementById('badStrip');
+    const badCountDisplay = document.getElementById('badCount');
 
     let isScanning = false;
-    let defectCount = 0;
+    let isAutoGoodCapturing = false;
+    let autoGoodTargetCount = 5;
     
-    // Array to store multiple good target samples
-    let targetSamples = []; 
+    let defectCount = 0;
+    let goodSamples = [];
+    let badSamples = [];
     let beltImageData = null;
     
     let isProductInZone = false;
@@ -212,29 +235,69 @@
       }
     }
 
-    function captureTargetSample() {
+    function captureGoodSample() {
       const c = document.createElement('canvas');
       c.width = 120; c.height = 120;
       const ctx = c.getContext('2d');
       ctx.drawImage(video, 0, 0, 120, 120);
       const imgData = ctx.getImageData(0, 0, 120, 120);
 
-      targetSamples.push(imgData);
+      goodSamples.push(imgData);
 
-      // Render thumbnail preview
-      if (targetSamples.length === 1) sampleStrip.innerHTML = '';
+      if (goodSamples.length === 1) goodStrip.innerHTML = '';
       const img = document.createElement('img');
       img.src = c.toDataURL('image/jpeg');
-      img.className = 'sample-thumb';
-      sampleStrip.appendChild(img);
+      img.className = 'sample-thumb-good';
+      goodStrip.appendChild(img);
 
-      sampleCountDisplay.innerText = targetSamples.length;
+      goodCountDisplay.innerText = goodSamples.length;
     }
 
-    function clearTargetSamples() {
-      targetSamples = [];
-      sampleStrip.innerHTML = '<span style="font-size:0.7rem; color:var(--text-muted);">No samples added</span>';
-      sampleCountDisplay.innerText = '0';
+    function startAutoGoodCapture() {
+      if (!beltImageData) {
+        alert("Set Empty Belt Reference first before using Auto-Learn!");
+        return;
+      }
+      goodSamples = [];
+      goodStrip.innerHTML = '';
+      goodCountDisplay.innerText = '0';
+      isAutoGoodCapturing = true;
+      liveStatus.className = "status-badge status-auto";
+      liveStatus.innerText = `AUTO-LEARNING GOOD PACKS (0/${autoGoodTargetCount})`;
+      if (!isScanning) {
+        isScanning = true;
+        scanLoop();
+      }
+    }
+
+    function clearGoodSamples() {
+      goodSamples = [];
+      goodStrip.innerHTML = '<span style="font-size:0.7rem; color:var(--text-muted);">No good samples added</span>';
+      goodCountDisplay.innerText = '0';
+    }
+
+    function captureBadSample() {
+      const c = document.createElement('canvas');
+      c.width = 120; c.height = 120;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(video, 0, 0, 120, 120);
+      const imgData = ctx.getImageData(0, 0, 120, 120);
+
+      badSamples.push(imgData);
+
+      if (badSamples.length === 1) badStrip.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = c.toDataURL('image/jpeg');
+      img.className = 'sample-thumb-bad';
+      badStrip.appendChild(img);
+
+      badCountDisplay.innerText = badSamples.length;
+    }
+
+    function clearBadSamples() {
+      badSamples = [];
+      badStrip.innerHTML = '<span style="font-size:0.7rem; color:var(--text-muted);">No defect samples added</span>';
+      badCountDisplay.innerText = '0';
     }
 
     function captureBeltFromCamera() {
@@ -244,10 +307,11 @@
     }
 
     function toggleScanning() {
-      if (targetSamples.length === 0) {
-        alert("Add at least ONE Good Target Sample first!");
+      if (goodSamples.length === 0) {
+        alert("Add or Auto-Capture at least ONE Good Target Sample first!");
         return;
       }
+      isAutoGoodCapturing = false;
       isScanning = !isScanning;
       const btn = document.getElementById('toggleScanBtn');
       
@@ -271,47 +335,78 @@
         procCtx.drawImage(video, 0, 0, procCanvas.width, procCanvas.height);
         const currentData = procCtx.getImageData(0, 0, procCanvas.width, procCanvas.height);
         
-        // Compute presence score relative to empty belt baseline
         let objectPresenceScore = beltImageData ? calculatePixelDiff(beltImageData.data, currentData.data) : 20;
         const objectTrigger = parseFloat(presenceInput.value);
 
-        // Gap detection logic: Check frame-to-frame delta to identify seam gaps between closely spaced boxes
         const frameDelta = Math.abs(objectPresenceScore - previousPresenceScore);
         previousPresenceScore = objectPresenceScore;
 
         if (objectPresenceScore < objectTrigger) {
-          liveStatus.className = "status-badge status-empty";
-          liveStatus.innerText = "BELT CLEAR";
+          if (!isAutoGoodCapturing) {
+            liveStatus.className = "status-badge status-empty";
+            liveStatus.innerText = "BELT CLEAR";
+          }
           isProductInZone = false;
         } 
         else {
-          // If a sharp transition occurs while in zone, force re-trigger for the next pack
           if (frameDelta > 12.0) {
             isProductInZone = false;
           }
 
-          // Evaluate current frame against ALL saved target samples (best-match approach)
-          let minDiff = 999;
-          for (let i = 0; i < targetSamples.length; i++) {
-            const diff = calculatePixelDiff(targetSamples[i].data, currentData.data);
-            if (diff < minDiff) minDiff = diff;
-          }
-
-          const defectThreshold = parseFloat(sensitivityInput.value);
-
-          if (minDiff > defectThreshold) {
-            liveStatus.className = "status-badge status-fail";
-            liveStatus.innerText = `DEFECT DETECTED (${minDiff.toFixed(1)}% Diff)`;
-
+          // 1. AUTO-LEARN MODE LOGIC
+          if (isAutoGoodCapturing) {
             if (!isProductInZone) {
-              triggerHighDecibelAlarm();
-              logDefect(minDiff);
+              captureGoodSample();
+              isProductInZone = true;
+              liveStatus.innerText = `AUTO-LEARNING GOOD PACKS (${goodSamples.length}/${autoGoodTargetCount})`;
+
+              if (goodSamples.length >= autoGoodTargetCount) {
+                isAutoGoodCapturing = false;
+                liveStatus.className = "status-badge status-pass";
+                liveStatus.innerText = "AUTO-LEARN COMPLETE! READY TO INSPECT";
+                const btn = document.getElementById('toggleScanBtn');
+                btn.innerText = "Stop Inspection";
+                btn.style.background = "var(--danger)";
+              }
+            }
+          } 
+          // 2. NORMAL DUAL-BANK INSPECTION LOGIC
+          else {
+            // Find closest match in GOOD bank
+            let minGoodDiff = 999;
+            for (let i = 0; i < goodSamples.length; i++) {
+              const diff = calculatePixelDiff(goodSamples[i].data, currentData.data);
+              if (diff < minGoodDiff) minGoodDiff = diff;
+            }
+
+            // Find closest match in BAD/REJECT bank
+            let minBadDiff = 999;
+            for (let i = 0; i < badSamples.length; i++) {
+              const diff = calculatePixelDiff(badSamples[i].data, currentData.data);
+              if (diff < minBadDiff) minBadDiff = diff;
+            }
+
+            const defectThreshold = parseFloat(sensitivityInput.value);
+            
+            // Defect Flag: Deviation from good > threshold OR matches a bad sample closer than a good sample
+            const isRejectMatch = (badSamples.length > 0) && (minBadDiff < minGoodDiff);
+            const isGoodDeviation = minGoodDiff > defectThreshold;
+
+            if (isGoodDeviation || isRejectMatch) {
+              liveStatus.className = "status-badge status-fail";
+              const reason = isRejectMatch ? "KNOWN DEFECT MATCH" : `${minGoodDiff.toFixed(1)}% Diff`;
+              liveStatus.innerText = `DEFECT DETECTED (${reason})`;
+
+              if (!isProductInZone) {
+                triggerHighDecibelAlarm();
+                logDefect(minGoodDiff, isRejectMatch);
+                isProductInZone = true;
+              }
+            } else {
+              liveStatus.className = "status-badge status-pass";
+              liveStatus.innerText = `PASS (${minGoodDiff.toFixed(1)}% Diff)`;
               isProductInZone = true;
             }
-          } else {
-            liveStatus.className = "status-badge status-pass";
-            liveStatus.innerText = `PASS (${minDiff.toFixed(1)}% Diff)`;
-            isProductInZone = true;
           }
         }
       }
@@ -334,7 +429,7 @@
       return (totalDiff / (sampledPixels * 255)) * 100;
     }
 
-    function logDefect(score) {
+    function logDefect(score, isRejectMatch) {
       defectCount++;
       document.getElementById('defectCount').innerText = defectCount;
 
@@ -349,7 +444,7 @@
         <img src="${snapshotUrl}" alt="Defect Snapshot"/>
         <div class="log-info">
           <strong>Defect #${defectCount}</strong> - ${timeStr}<br/>
-          <span style="color:var(--danger)">Deviation: ${score.toFixed(1)}%</span>
+          <span style="color:var(--danger)">${isRejectMatch ? 'Matched Known Reject Profile' : 'Deviation: ' + score.toFixed(1) + '%'}</span>
         </div>
       `;
       logList.insertBefore(logItem, logList.firstChild);
