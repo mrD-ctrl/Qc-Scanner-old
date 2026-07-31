@@ -58,7 +58,7 @@
 
   <header>
     <div>
-      <h1>High-Speed Line Inspector (100+ PPM)</h1>
+      <h1>High-Speed Line Inspector</h1>
       <p style="font-size: 0.7rem; color: var(--text-muted);">Real-time high-speed anomaly scanner</p>
     </div>
     
@@ -73,7 +73,6 @@
   </header>
 
   <div class="grid">
-    <!-- Camera Feed -->
     <div class="card">
       <h2>Live Line Camera</h2>
       <video id="webcam" autoplay playsinline muted></video>
@@ -99,7 +98,6 @@
       <div id="liveStatus" class="status-badge status-standby">STATUS: STANDBY</div>
     </div>
 
-    <!-- Reference Standards -->
     <div class="card">
       <h2>Reference Calibration</h2>
       
@@ -121,12 +119,11 @@
         <input type="file" id="fileInput" accept="image/*" onchange="loadReferenceFromFile(event)">
       </div>
       <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">
-        *Important: Point camera at empty running belt and click "Set Empty Belt" so moving belt texture is ignored.
+        *Point camera at empty running belt and click "Set Empty Belt" so moving belt background is ignored.
       </p>
     </div>
   </div>
 
-  <!-- Defect Log -->
   <div class="card" style="margin-top: 12px;">
     <h2>Defect Audit Log</h2>
     <div id="logList" class="log-list">
@@ -158,12 +155,10 @@
     let defectCount = 0;
     let refImageData = null;
     let beltImageData = null;
-    
     let isProductInZone = false;
     let isMuted = false;
     let animationFrameId = null;
 
-    // Loud High-Decibel Web Audio Industrial Alarm
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function triggerHighDecibelAlarm() {
@@ -175,12 +170,10 @@
       const gain = audioCtx.createGain();
 
       osc.type = 'sawtooth';
-      
-      // Dual-frequency siren effect (1200 Hz down to 600 Hz)
       osc.frequency.setValueAtTime(1200, now);
       osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
 
-      gain.gain.setValueAtTime(1.0, now); // Max gain level
+      gain.gain.setValueAtTime(1.0, now);
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
 
       osc.connect(gain);
@@ -257,7 +250,6 @@
       }
     }
 
-    // High-speed 60FPS loop with edge-trigger logic for fast moving units
     function scanLoop() {
       if (!isScanning) return;
       
@@ -265,24 +257,15 @@
         procCtx.drawImage(video, 0, 0, procCanvas.width, procCanvas.height);
         const currentData = procCtx.getImageData(0, 0, procCanvas.width, procCanvas.height);
         
-        // 1. Check if an object is breaking the empty belt baseline
-        let objectPresenceScore = 0;
-        if (beltImageData) {
-          objectPresenceScore = calculatePixelDiff(beltImageData.data, currentData.data);
-        } else {
-          objectPresenceScore = 20; // Default trigger if belt reference not set
-        }
-
+        let objectPresenceScore = beltImageData ? calculatePixelDiff(beltImageData.data, currentData.data) : 20;
         const objectTrigger = parseFloat(presenceInput.value);
 
         if (objectPresenceScore < objectTrigger) {
-          // Zone is clear / Belt empty
           liveStatus.className = "status-badge status-empty";
           liveStatus.innerText = "BELT CLEAR";
-          isProductInZone = false; // Reset zone state for next item
+          isProductInZone = false;
         } 
         else {
-          // Object detected in inspection window
           const defectScore = calculatePixelDiff(refImageData.data, currentData.data);
           const defectThreshold = parseFloat(sensitivityInput.value);
 
@@ -290,7 +273,6 @@
             liveStatus.className = "status-badge status-fail";
             liveStatus.innerText = `DEFECT DETECTED (${defectScore.toFixed(1)}% Diff)`;
 
-            // Edge trigger: Only fire ONCE per product entry into inspection window
             if (!isProductInZone) {
               triggerHighDecibelAlarm();
               logDefect(defectScore);
@@ -307,7 +289,6 @@
       animationFrameId = requestAnimationFrame(scanLoop);
     }
 
-    // Downsampled differential matrix calculation (<5ms execution time)
     function calculatePixelDiff(ref, current) {
       let totalDiff = 0;
       const length = ref.length;
