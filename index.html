@@ -6,7 +6,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
-  <title>Universal Line Inspector — Object-Gated v6.1</title>
+  <title>Universal Line Inspector — OCR & Artwork v8</title>
 
   <style>
     :root {
@@ -110,8 +110,8 @@
     .video-container {
       position: relative;
       width: 100%;
-      height: min(62vh, 520px);
-      min-height: 300px;
+      height: clamp(440px, 76vh, 820px);
+      min-height: 440px;
       overflow: hidden;
       display: flex;
       align-items: center;
@@ -136,10 +136,10 @@
 
     .roi-overlay {
       position: absolute;
-      left: 3%;
-      top: 7%;
-      width: 94%;
-      height: 86%;
+      left: 2.5%;
+      top: 3%;
+      width: 95%;
+      height: 94%;
       border: 3px dashed var(--warning);
       border-radius: 7px;
       box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.24);
@@ -370,7 +370,24 @@
       text-align: center;
       font-size: 0.62rem;
     }
+  
+    .inspection-zones { display:grid; gap:12px; margin-top:12px; }
+    .zone-card { border:1px solid #334155; border-radius:12px; padding:12px; background:#0f172a; }
+    .zone-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:8px; }
+    .zone-grid input, .zone-grid select {
+      width:100%; border-radius:8px; border:1px solid #475569;
+      background:#111827; color:#e5e7eb; padding:9px;
+    }
+    .zone-list { display:grid; gap:8px; margin-top:10px; }
+    .zone-row {
+      display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center;
+      border:1px solid #334155; border-radius:10px; padding:10px; background:#111827;
+    }
+    .zone-meta { font-size:12px; color:#94a3b8; margin-top:3px; }
+    .ocr-status { margin-top:8px; font-size:13px; color:#93c5fd; }
+
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 
 <body>
@@ -463,6 +480,47 @@
       </div>
     </section>
 
+
+    <section class="card">
+      <h2>Required Text & Artwork Zones</h2>
+
+      <p class="helper">
+        Define important areas using percentage coordinates of the detected product.
+        Text zones use OCR. Artwork zones compare logos, graphics, labels and print
+        layout against the nearest accepted good sample.
+      </p>
+
+      <div class="zone-card">
+        <div class="zone-grid">
+          <select id="zoneType">
+            <option value="text">Required text</option>
+            <option value="artwork">Required artwork/logo</option>
+          </select>
+
+          <input id="zoneName" type="text" placeholder="Zone name, e.g. Product name" />
+          <input id="zoneExpectedText" type="text" placeholder="Expected text, e.g. CHOCOLATE" />
+          <input id="zoneThreshold" type="number" min="1" max="100" value="78"
+            aria-label="Minimum match percentage" />
+
+          <input id="zoneX" type="number" min="0" max="100" value="10" placeholder="X %" />
+          <input id="zoneY" type="number" min="0" max="100" value="10" placeholder="Y %" />
+          <input id="zoneW" type="number" min="1" max="100" value="40" placeholder="Width %" />
+          <input id="zoneH" type="number" min="1" max="100" value="20" placeholder="Height %" />
+        </div>
+
+        <div class="controls" style="margin-top:10px">
+          <button id="addZoneBtn">Add Inspection Zone</button>
+          <button id="clearZonesBtn" class="secondary">Clear Zones</button>
+        </div>
+
+        <div id="ocrStatus" class="ocr-status">
+          OCR loads only when a required text zone is inspected.
+        </div>
+
+        <div id="zoneList" class="zone-list"></div>
+      </div>
+    </section>
+
     <section class="card">
       <h2>Quick Universal Calibration</h2>
 
@@ -538,8 +596,9 @@
         </div>
 
         <p class="helper">
-          Optional. The system already rejects anything outside the good-sample range.
-          Add bad samples only to identify familiar defects or wrong products more clearly.
+          Optional but strongly recommended for orientation-sensitive defects.
+          Add upside-down packs, wrong artwork, missing print, wrong labels and other
+          known failures. A close reject match can now override a colour-similar good match.
         </p>
       </div>
 
@@ -555,8 +614,9 @@
         </p>
 
         <p class="helper">
-          Decision rule: match to any accepted good sample = PASS. Anything outside the
-          good range = REJECT. Optional bad samples only improve the reject description.
+          Smart decision rule: accepted artwork/orientation = PASS. A trained reject can
+          override a colour-similar good match. Unknown objects, wrong colour, missing
+          artwork, missing print or unmatched layouts = REJECT.
         </p>
       </div>
     </section>
@@ -579,10 +639,10 @@
     "use strict";
 
     const ROI = Object.freeze({
-      x: 0.03,
-      y: 0.07,
-      width: 0.94,
-      height: 0.86
+      x: 0.025,
+      y: 0.03,
+      width: 0.95,
+      height: 0.94
     });
 
     const PROCESS_SIZE = 320;
@@ -611,6 +671,13 @@
     // from creating a false reject.
     const GLOBAL_CHANGE_SUPPRESSION = 0.58;
 
+    // Smart artwork/orientation comparison.
+    const ARTWORK_GRID = 6;
+    const HASH_SIZE = 16;
+    const BAD_VETO_MARGIN = 3.0;
+    const STRONG_BAD_MATCH_LIMIT = 17;
+    const GOOD_PASS_SAFETY_MARGIN = 1.5;
+
     const video = document.getElementById("webcam");
     const stage = document.getElementById("stage");
     const displayCanvas = document.getElementById("displayCanvas");
@@ -638,6 +705,19 @@
     const calibrationMessage = document.getElementById("calibrationMessage");
     const saveCalibrationBtn = document.getElementById("saveCalibrationBtn");
 
+    const zoneType = document.getElementById("zoneType");
+    const zoneName = document.getElementById("zoneName");
+    const zoneExpectedText = document.getElementById("zoneExpectedText");
+    const zoneThreshold = document.getElementById("zoneThreshold");
+    const zoneX = document.getElementById("zoneX");
+    const zoneY = document.getElementById("zoneY");
+    const zoneW = document.getElementById("zoneW");
+    const zoneH = document.getElementById("zoneH");
+    const addZoneBtn = document.getElementById("addZoneBtn");
+    const clearZonesBtn = document.getElementById("clearZonesBtn");
+    const zoneList = document.getElementById("zoneList");
+    const ocrStatus = document.getElementById("ocrStatus");
+
     const differenceThreshold = document.getElementById("differenceThreshold");
     const presenceThreshold = document.getElementById("presenceThreshold");
     const beltPixelThreshold = document.getElementById("beltPixelThreshold");
@@ -656,6 +736,10 @@
 
     let beltModel = null;
     let beltVarianceModel = null;
+    let inspectionZones = [];
+    let ocrWorker = null;
+    let ocrReady = false;
+    let ocrLoadingPromise = null;
     let tracks = new Map();
     let nextTrackId = 1;
     let lastProcessTime = 0;
@@ -730,8 +814,8 @@
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: facingMode },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { ideal: 1080 },
+            height: { ideal: 1920 },
             frameRate: { ideal: 60, min: 24 }
           },
           audio: false
@@ -900,39 +984,66 @@
       return referenceCanvas.toDataURL("image/jpeg", 0.84);
     }
 
+
     function createFeatureVector(imageData, mask = null) {
-      const data = imageData.data;
+      const { width, height, data } = imageData;
       const binsPerChannel = 8;
       const histogram = new Float32Array(binsPerChannel * 3);
-      const blockGrid = 4;
-      const blocks = new Float32Array(blockGrid * blockGrid);
+
+      // Spatial colour/brightness grid keeps artwork location and orientation.
+      const grid = ARTWORK_GRID;
+      const gridValues = new Float32Array(grid * grid * 4);
+      const gridCounts = new Uint32Array(grid * grid);
+
+      // Downsampled grayscale image for orientation-sensitive perceptual hash.
+      const graySmall = new Float32Array(HASH_SIZE * HASH_SIZE);
+      const grayCounts = new Uint16Array(HASH_SIZE * HASH_SIZE);
+
+      // Edge map captures lettering, logos and artwork structure.
+      const grayFull = new Float32Array(width * height);
       let count = 0;
 
-      for (let y = 0; y < imageData.height; y++) {
-        for (let x = 0; x < imageData.width; x++) {
-          const pixelIndex = y * imageData.width + x;
-          const i = pixelIndex * 4;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const p = y * width + x;
+          const i = p * 4;
 
-          if (mask && mask[pixelIndex] === 0) continue;
+          if (mask && mask[p] === 0) continue;
 
           const r = data[i];
           const g = data[i + 1];
           const b = data[i + 2];
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+
+          grayFull[p] = gray;
 
           histogram[Math.min(7, r >> 5)] += 1;
           histogram[8 + Math.min(7, g >> 5)] += 1;
           histogram[16 + Math.min(7, b >> 5)] += 1;
 
-          const blockX = Math.min(
-            blockGrid - 1,
-            Math.floor((x / imageData.width) * blockGrid)
-          );
-          const blockY = Math.min(
-            blockGrid - 1,
-            Math.floor((y / imageData.height) * blockGrid)
-          );
+          const gx = Math.min(grid - 1, Math.floor((x / width) * grid));
+          const gy = Math.min(grid - 1, Math.floor((y / height) * grid));
+          const gi = gy * grid + gx;
+          const go = gi * 4;
 
-          blocks[blockY * blockGrid + blockX] += (r + g + b) / 765;
+          gridValues[go] += r / 255;
+          gridValues[go + 1] += g / 255;
+          gridValues[go + 2] += b / 255;
+          gridValues[go + 3] += gray / 255;
+          gridCounts[gi]++;
+
+          const hx = Math.min(
+            HASH_SIZE - 1,
+            Math.floor((x / width) * HASH_SIZE)
+          );
+          const hy = Math.min(
+            HASH_SIZE - 1,
+            Math.floor((y / height) * HASH_SIZE)
+          );
+          const hi = hy * HASH_SIZE + hx;
+          graySmall[hi] += gray;
+          grayCounts[hi]++;
+
           count++;
         }
       }
@@ -943,40 +1054,164 @@
         histogram[i] /= safeCount;
       }
 
-      const pixelsPerBlock = Math.max(
-        1,
-        safeCount / (blockGrid * blockGrid)
+      for (let cell = 0; cell < gridCounts.length; cell++) {
+        const divisor = Math.max(1, gridCounts[cell]);
+        const offset = cell * 4;
+        gridValues[offset] /= divisor;
+        gridValues[offset + 1] /= divisor;
+        gridValues[offset + 2] /= divisor;
+        gridValues[offset + 3] /= divisor;
+      }
+
+      for (let i = 0; i < graySmall.length; i++) {
+        graySmall[i] /= Math.max(1, grayCounts[i]);
+      }
+
+      const meanGray =
+        graySmall.reduce((sum, value) => sum + value, 0) /
+        graySmall.length;
+
+      const perceptualHash = Array.from(
+        graySmall,
+        value => (value >= meanGray ? 1 : 0)
       );
 
-      for (let i = 0; i < blocks.length; i++) {
-        blocks[i] /= pixelsPerBlock;
+      // Sobel-like edge energy in each spatial cell.
+      const edgeGrid = new Float32Array(grid * grid);
+      const edgeCounts = new Uint32Array(grid * grid);
+
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const p = y * width + x;
+          if (mask && mask[p] === 0) continue;
+
+          const gx =
+            -grayFull[(y - 1) * width + (x - 1)] +
+             grayFull[(y - 1) * width + (x + 1)] +
+            -2 * grayFull[y * width + (x - 1)] +
+             2 * grayFull[y * width + (x + 1)] +
+            -grayFull[(y + 1) * width + (x - 1)] +
+             grayFull[(y + 1) * width + (x + 1)];
+
+          const gy =
+            -grayFull[(y - 1) * width + (x - 1)] -
+             2 * grayFull[(y - 1) * width + x] -
+             grayFull[(y - 1) * width + (x + 1)] +
+             grayFull[(y + 1) * width + (x - 1)] +
+             2 * grayFull[(y + 1) * width + x] +
+             grayFull[(y + 1) * width + (x + 1)];
+
+          const magnitude = Math.min(1, Math.hypot(gx, gy) / 1020);
+          const cellX = Math.min(
+            grid - 1,
+            Math.floor((x / width) * grid)
+          );
+          const cellY = Math.min(
+            grid - 1,
+            Math.floor((y / height) * grid)
+          );
+          const cell = cellY * grid + cellX;
+
+          edgeGrid[cell] += magnitude;
+          edgeCounts[cell]++;
+        }
+      }
+
+      for (let i = 0; i < edgeGrid.length; i++) {
+        edgeGrid[i] /= Math.max(1, edgeCounts[i]);
       }
 
       return {
+        descriptorVersion: 3,
         histogram: Array.from(histogram),
-        blocks: Array.from(blocks)
+        spatial: Array.from(gridValues),
+        edgeGrid: Array.from(edgeGrid),
+        perceptualHash
       };
     }
 
+    function meanAbsoluteDifference(a, b) {
+      const length = Math.min(a?.length || 0, b?.length || 0);
+      if (!length) return 1;
+
+      let sum = 0;
+      for (let i = 0; i < length; i++) {
+        sum += Math.abs(a[i] - b[i]);
+      }
+      return sum / length;
+    }
+
+    function hashDifference(a, b) {
+      const length = Math.min(a?.length || 0, b?.length || 0);
+      if (!length) return 1;
+
+      let different = 0;
+      for (let i = 0; i < length; i++) {
+        if (a[i] !== b[i]) different++;
+      }
+      return different / length;
+    }
+
     function featureDifference(a, b) {
+      // Old saved descriptors cannot reliably detect artwork orientation.
+      if (
+        !a ||
+        !b ||
+        a.descriptorVersion !== 3 ||
+        b.descriptorVersion !== 3
+      ) {
+        return 100;
+      }
+
       let histogramDifference = 0;
-      let blockDifference = 0;
-
       for (let i = 0; i < a.histogram.length; i++) {
-        histogramDifference += Math.abs(a.histogram[i] - b.histogram[i]);
+        histogramDifference += Math.abs(
+          a.histogram[i] - b.histogram[i]
+        );
       }
 
-      for (let i = 0; i < a.blocks.length; i++) {
-        blockDifference += Math.abs(a.blocks[i] - b.blocks[i]);
-      }
-
-      const histogramScore = Math.min(100, (histogramDifference / 2) * 100);
-      const blockScore = Math.min(
+      const histogramScore = Math.min(
         100,
-        (blockDifference / a.blocks.length) * 100
+        (histogramDifference / 2) * 100
       );
 
-      return histogramScore * 0.58 + blockScore * 0.42;
+      const spatialScore =
+        Math.min(1, meanAbsoluteDifference(a.spatial, b.spatial)) * 100;
+
+      const edgeScore =
+        Math.min(1, meanAbsoluteDifference(a.edgeGrid, b.edgeGrid) * 3.2) *
+        100;
+
+      const hashScore =
+        Math.min(1, hashDifference(a.perceptualHash, b.perceptualHash)) *
+        100;
+
+      // Global colour has deliberately lower weight. Spatial artwork,
+      // edges and orientation dominate the final decision.
+      return (
+        histogramScore * 0.18 +
+        spatialScore * 0.34 +
+        edgeScore * 0.20 +
+        hashScore * 0.28
+      );
+    }
+
+    function nearestReference(feature, samples) {
+      let bestDifference = Number.POSITIVE_INFINITY;
+      let bestIndex = -1;
+
+      for (let i = 0; i < samples.length; i++) {
+        const difference = featureDifference(feature, samples[i].feature);
+        if (difference < bestDifference) {
+          bestDifference = difference;
+          bestIndex = i;
+        }
+      }
+
+      return {
+        difference: bestDifference,
+        index: bestIndex
+      };
     }
 
     function buildBeltModel() {
@@ -1628,6 +1863,20 @@
         return;
       }
 
+      // Rebuild descriptors so every good and bad sample uses the current
+      // orientation-sensitive artwork engine.
+      for (const sample of goodSamples) {
+        if (sample.imageData) {
+          sample.feature = createFeatureVector(sample.imageData);
+        }
+      }
+
+      for (const sample of badSamples) {
+        if (sample.imageData) {
+          sample.feature = createFeatureVector(sample.imageData);
+        }
+      }
+
       buildBeltModel();
 
       calibrated = true;
@@ -1638,41 +1887,360 @@
         `good samples: ${goodSamples.length}, optional known rejects: ${badSamples.length}.`;
     }
 
-    function inspectObject(objectImageData) {
-      const currentFeature = createFeatureVector(objectImageData);
 
-      const nearestGood = Math.min(
-        ...goodSamples.map((sample) =>
-          featureDifference(currentFeature, sample.feature)
-        )
-      );
 
-      const failLimit = Number(differenceThreshold.value);
-      const outsideGoodRange = nearestGood > failLimit;
+    function clampPercent(value, minimum = 0, maximum = 100) {
+      return Math.max(minimum, Math.min(maximum, Number(value)));
+    }
 
-      let nearestBad = Number.POSITIVE_INFINITY;
-      let knownReject = false;
+    function renderInspectionZones() {
+      zoneList.innerHTML = "";
 
-      // Bad samples are optional and never required for rejection.
-      // They only help explain what kind of rejection was detected.
-      if (outsideGoodRange && badSamples.length > 0) {
-        nearestBad = Math.min(
-          ...badSamples.map((sample) =>
-            featureDifference(currentFeature, sample.feature)
-          )
-        );
-
-        knownReject =
-          nearestBad < nearestGood &&
-          nearestBad <= failLimit * 1.20;
+      if (inspectionZones.length === 0) {
+        zoneList.innerHTML =
+          '<div class="helper">No required inspection zones configured.</div>';
+        return;
       }
 
-      if (!outsideGoodRange) {
+      for (const zone of inspectionZones) {
+        const row = document.createElement("div");
+        row.className = "zone-row";
+
+        const information = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent =
+          `${zone.name} — ${zone.type === "text" ? "Text" : "Artwork"}`;
+
+        const metadata = document.createElement("div");
+        metadata.className = "zone-meta";
+        metadata.textContent =
+          `x ${zone.x}% · y ${zone.y}% · w ${zone.w}% · h ${zone.h}% · ` +
+          `minimum ${zone.threshold}%` +
+          (zone.expectedText ? ` · expected "${zone.expectedText}"` : "");
+
+        information.append(title, metadata);
+
+        const removeButton = document.createElement("button");
+        removeButton.className = "danger";
+        removeButton.textContent = "Remove";
+        removeButton.addEventListener("click", () => {
+          inspectionZones = inspectionZones.filter(item => item.id !== zone.id);
+          renderInspectionZones();
+        });
+
+        row.append(information, removeButton);
+        zoneList.appendChild(row);
+      }
+    }
+
+    function addInspectionZone() {
+      const type = zoneType.value;
+      const expectedText = zoneExpectedText.value.trim();
+
+      if (type === "text" && !expectedText) {
+        alert("Enter the exact word or information expected in this text zone.");
+        return;
+      }
+
+      const zone = {
+        id: `${Date.now()}-${Math.random()}`,
+        type,
+        name:
+          zoneName.value.trim() ||
+          (type === "text" ? "Required text" : "Required artwork"),
+        expectedText,
+        threshold: clampPercent(zoneThreshold.value, 1, 100),
+        x: clampPercent(zoneX.value),
+        y: clampPercent(zoneY.value),
+        w: clampPercent(zoneW.value, 1, 100),
+        h: clampPercent(zoneH.value, 1, 100)
+      };
+
+      zone.w = Math.max(1, Math.min(zone.w, 100 - zone.x));
+      zone.h = Math.max(1, Math.min(zone.h, 100 - zone.y));
+
+      inspectionZones.push(zone);
+      renderInspectionZones();
+    }
+
+    function cropPercentRegion(imageData, zone, outputWidth = 320, outputHeight = 160) {
+      const source = document.createElement("canvas");
+      source.width = imageData.width;
+      source.height = imageData.height;
+      source.getContext("2d").putImageData(imageData, 0, 0);
+
+      const sx = Math.floor((zone.x / 100) * imageData.width);
+      const sy = Math.floor((zone.y / 100) * imageData.height);
+      const sw = Math.max(1, Math.floor((zone.w / 100) * imageData.width));
+      const sh = Math.max(1, Math.floor((zone.h / 100) * imageData.height));
+
+      const output = document.createElement("canvas");
+      output.width = outputWidth;
+      output.height = outputHeight;
+
+      const context = output.getContext("2d", { willReadFrequently: true });
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(source, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
+
+      return {
+        canvas: output,
+        imageData: context.getImageData(0, 0, outputWidth, outputHeight)
+      };
+    }
+
+    function normaliseText(value) {
+      return String(value || "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "");
+    }
+
+    function levenshteinDistance(a, b) {
+      const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+      const current = new Array(b.length + 1);
+
+      for (let i = 1; i <= a.length; i++) {
+        current[0] = i;
+        for (let j = 1; j <= b.length; j++) {
+          current[j] = Math.min(
+            current[j - 1] + 1,
+            previous[j] + 1,
+            previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+          );
+        }
+        for (let j = 0; j <= b.length; j++) previous[j] = current[j];
+      }
+
+      return previous[b.length];
+    }
+
+    function textSimilarity(actual, expected) {
+      const actualClean = normaliseText(actual);
+      const expectedClean = normaliseText(expected);
+
+      if (!expectedClean) return 100;
+      if (!actualClean) return 0;
+      if (actualClean.includes(expectedClean)) return 100;
+
+      const distance = levenshteinDistance(actualClean, expectedClean);
+      return Math.max(
+        0,
+        100 * (1 - distance / Math.max(actualClean.length, expectedClean.length))
+      );
+    }
+
+    async function ensureOcrWorker() {
+      if (ocrReady && ocrWorker) return true;
+      if (ocrLoadingPromise) return ocrLoadingPromise;
+
+      ocrLoadingPromise = (async () => {
+        if (!window.Tesseract) {
+          ocrStatus.textContent =
+            "OCR library unavailable. Artwork checks still work.";
+          return false;
+        }
+
+        try {
+          ocrStatus.textContent = "Loading OCR engine…";
+
+          ocrWorker = await Tesseract.createWorker("eng", 1, {
+            logger: message => {
+              if (!message.status) return;
+              const percentage = Number.isFinite(message.progress)
+                ? ` ${Math.round(message.progress * 100)}%`
+                : "";
+              ocrStatus.textContent = `${message.status}${percentage}`;
+            }
+          });
+
+          await ocrWorker.setParameters({
+            tessedit_pageseg_mode: "7",
+            preserve_interword_spaces: "1"
+          });
+
+          ocrReady = true;
+          ocrStatus.textContent = "OCR ready.";
+          return true;
+        } catch (error) {
+          console.error(error);
+          ocrStatus.textContent =
+            "OCR failed to load. Artwork comparison remains active.";
+          return false;
+        } finally {
+          ocrLoadingPromise = null;
+        }
+      })();
+
+      return ocrLoadingPromise;
+    }
+
+    function artworkZoneSimilarity(currentImage, referenceImage, zone) {
+      const currentCrop = cropPercentRegion(currentImage, zone, 256, 128);
+      const referenceCrop = cropPercentRegion(referenceImage, zone, 256, 128);
+
+      const currentFeature = createFeatureVector(currentCrop.imageData);
+      const referenceFeature = createFeatureVector(referenceCrop.imageData);
+      return Math.max(
+        0,
+        100 - featureDifference(currentFeature, referenceFeature)
+      );
+    }
+
+    async function evaluateInspectionZones(objectImageData, goodIndex) {
+      if (inspectionZones.length === 0 || goodIndex < 0) {
+        return { failed: false, reasons: [], details: [] };
+      }
+
+      const referenceImage = goodSamples[goodIndex]?.imageData;
+      if (!referenceImage) {
+        return {
+          failed: true,
+          reasons: ["Full good-reference image unavailable; recalibration required"],
+          details: []
+        };
+      }
+
+      const reasons = [];
+      const details = [];
+
+      for (const zone of inspectionZones) {
+        if (zone.type === "artwork") {
+          const similarity = artworkZoneSimilarity(
+            objectImageData,
+            referenceImage,
+            zone
+          );
+
+          details.push({ zone: zone.name, type: "artwork", similarity });
+
+          if (similarity < zone.threshold) {
+            reasons.push(
+              `${zone.name} missing or changed (${similarity.toFixed(0)}% match)`
+            );
+          }
+          continue;
+        }
+
+        const ready = await ensureOcrWorker();
+        if (!ready) {
+          reasons.push(`${zone.name}: OCR unavailable`);
+          continue;
+        }
+
+        const crop = cropPercentRegion(objectImageData, zone, 720, 260);
+        const context = crop.canvas.getContext("2d", { willReadFrequently: true });
+        const pixels = context.getImageData(
+          0,
+          0,
+          crop.canvas.width,
+          crop.canvas.height
+        );
+
+        for (let i = 0; i < pixels.data.length; i += 4) {
+          const gray =
+            0.299 * pixels.data[i] +
+            0.587 * pixels.data[i + 1] +
+            0.114 * pixels.data[i + 2];
+
+          const contrasted = gray < 105 ? 0 : gray > 170 ? 255 : gray;
+          pixels.data[i] = contrasted;
+          pixels.data[i + 1] = contrasted;
+          pixels.data[i + 2] = contrasted;
+        }
+
+        context.putImageData(pixels, 0, 0);
+
+        const recognition = await ocrWorker.recognize(crop.canvas);
+        const readText = recognition?.data?.text?.trim() || "";
+        const similarity = textSimilarity(readText, zone.expectedText);
+
+        details.push({
+          zone: zone.name,
+          type: "text",
+          expected: zone.expectedText,
+          actual: readText,
+          similarity
+        });
+
+        if (similarity < zone.threshold) {
+          reasons.push(
+            `${zone.name}: expected "${zone.expectedText}", read "${readText || "nothing"}"`
+          );
+        }
+      }
+
+      return {
+        failed: reasons.length > 0,
+        reasons,
+        details
+      };
+    }
+
+    async function inspectObject(objectImageData) {
+      const currentFeature = createFeatureVector(objectImageData);
+      const goodMatch = nearestReference(currentFeature, goodSamples);
+      const badMatch =
+        badSamples.length > 0
+          ? nearestReference(currentFeature, badSamples)
+          : {
+              difference: Number.POSITIVE_INFINITY,
+              index: -1
+            };
+
+      const failLimit = Number(differenceThreshold.value);
+      const nearestGood = goodMatch.difference;
+      const nearestBad = badMatch.difference;
+
+      // Important: a known reject is checked BEFORE the normal good-pass rule.
+      // This allows an upside-down box, wrong artwork or missing print to be
+      // rejected even when its overall colour is nearly identical to a good box.
+      const badClearlyCloser =
+        badSamples.length > 0 &&
+        nearestBad + BAD_VETO_MARGIN < nearestGood;
+
+      const strongKnownBad =
+        badSamples.length > 0 &&
+        nearestBad <= STRONG_BAD_MATCH_LIMIT &&
+        nearestBad + GOOD_PASS_SAFETY_MARGIN < nearestGood;
+
+      if (badClearlyCloser || strongKnownBad) {
+        return {
+          rejected: true,
+          nearestGood,
+          nearestBad,
+          goodIndex: goodMatch.index,
+          badIndex: badMatch.index,
+          reason: "Matches a trained reject: artwork/orientation defect"
+        };
+      }
+
+      if (nearestGood <= failLimit) {
+        const zoneResult = await evaluateInspectionZones(
+          objectImageData,
+          goodMatch.index
+        );
+
+        if (zoneResult.failed) {
+          return {
+            rejected: true,
+            nearestGood,
+            nearestBad,
+            goodIndex: goodMatch.index,
+            badIndex: badMatch.index,
+            reason: zoneResult.reasons.join("; "),
+            zoneDetails: zoneResult.details
+          };
+        }
+
         return {
           rejected: false,
           nearestGood,
           nearestBad,
-          reason: "Matches accepted good samples"
+          goodIndex: goodMatch.index,
+          badIndex: badMatch.index,
+          reason:
+            "Matches accepted artwork, orientation, required text and graphics",
+          zoneDetails: zoneResult.details
         };
       }
 
@@ -1680,13 +2248,16 @@
         rejected: true,
         nearestGood,
         nearestBad,
-        reason: knownReject
-          ? "Known reject or wrong product"
-          : "Unknown defect or product mismatch"
+        goodIndex: goodMatch.index,
+        badIndex: badMatch.index,
+        reason:
+          nearestBad < nearestGood
+            ? "Likely known defect or wrong orientation"
+            : "Unknown object, missing artwork, colour or print mismatch"
       };
     }
 
-    function logRejectForTrack(track) {
+    async function logRejectForTrack(track) {
       if (track.inspected) return;
 
       track.result = inspectObject(track.imageData);
@@ -1707,7 +2278,12 @@
           <strong>Reject #${rejectCount} · Product ID ${track.id}</strong><br />
           ${new Date().toLocaleTimeString()}<br />
           <span style="color:#f87171">${track.result.reason}</span><br />
-          Difference from nearest good: ${track.result.nearestGood.toFixed(1)}%
+          Difference from nearest good: ${track.result.nearestGood.toFixed(1)}%<br />
+          ${
+            Number.isFinite(track.result.nearestBad)
+              ? `Difference from nearest reject: ${track.result.nearestBad.toFixed(1)}%`
+              : "No reject reference used"
+          }
         </div>
       `;
 
@@ -1728,7 +2304,7 @@
         // solid unknown object is background noise and is silently ignored.
         if (!track.resemblesProduct && !track.solidUnknownObject) continue;
 
-        logRejectForTrack(track);
+        void logRejectForTrack(track);
 
         if (!track.result?.rejected) {
           track.result = track.result || inspectObject(track.imageData);
@@ -1873,7 +2449,14 @@
     function serialiseSamples(samples) {
       return samples.map((sample) => ({
         thumbnail: sample.thumbnail,
-        feature: sample.feature
+        feature: sample.feature,
+        imageData: sample.imageData
+          ? {
+              width: sample.imageData.width,
+              height: sample.imageData.height,
+              data: Array.from(sample.imageData.data)
+            }
+          : null
       }));
     }
 
@@ -1885,10 +2468,11 @@
       if (!name?.trim()) return;
 
       const saved = {
-        version: 2,
+        version: 4,
         name: name.trim(),
         savedAt: new Date().toISOString(),
         roi: ROI,
+        inspectionZones,
         settings: {
           differenceThreshold: differenceThreshold.value,
           presenceThreshold: presenceThreshold.value,
@@ -1911,7 +2495,13 @@
 
     function restoreSamples(savedSamples) {
       return (savedSamples || []).map((sample) => ({
-        imageData: null,
+        imageData: sample.imageData
+          ? new ImageData(
+              new Uint8ClampedArray(sample.imageData.data),
+              sample.imageData.width,
+              sample.imageData.height
+            )
+          : null,
         feature: sample.feature,
         thumbnail: sample.thumbnail
       }));
@@ -1928,6 +2518,15 @@
       try {
         const saved = JSON.parse(raw);
 
+        if (saved.version !== 4) {
+          alert(
+            "This saved calibration uses the older inspection engine. " +
+            "Please capture the samples again and recalibrate for smart " +
+            "artwork and upside-down detection."
+          );
+          return;
+        }
+
         beltModel = saved.beltModel
           ? new Float32Array(saved.beltModel)
           : null;
@@ -1935,6 +2534,10 @@
         beltSamples = restoreSamples(saved.beltSamples);
         goodSamples = restoreSamples(saved.goodSamples);
         badSamples = restoreSamples(saved.badSamples);
+        inspectionZones = Array.isArray(saved.inspectionZones)
+          ? saved.inspectionZones
+          : [];
+        renderInspectionZones();
 
         differenceThreshold.value =
           saved.settings?.differenceThreshold ?? 24;
@@ -1980,6 +2583,20 @@
     scanBtn.addEventListener("click", toggleScanning);
     muteBtn.addEventListener("click", toggleMute);
     resetRejectBtn.addEventListener("click", resetRejectCount);
+
+    addZoneBtn.addEventListener("click", addInspectionZone);
+    clearZonesBtn.addEventListener("click", () => {
+      inspectionZones = [];
+      renderInspectionZones();
+    });
+
+    zoneType.addEventListener("change", () => {
+      const textMode = zoneType.value === "text";
+      zoneExpectedText.disabled = !textMode;
+      zoneExpectedText.placeholder = textMode
+        ? "Expected text, e.g. CHOCOLATE"
+        : "Not required for artwork zones";
+    });
 
     zoomRange.addEventListener("input", (event) => {
       applyZoom(event.target.value);
@@ -2092,6 +2709,7 @@
     window.addEventListener("load", async () => {
       updateTopControls();
       updateSliderLabels();
+      renderInspectionZones();
       renderSampleStrips();
       resizeDisplayCanvas();
       await startCamera("environment");
