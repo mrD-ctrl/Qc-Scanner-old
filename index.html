@@ -1,553 +1,1482 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Universal Line Inspector with Profiles</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Universal Line Inspector — Clean Rebuild V3</title>
   <style>
     :root {
-      --bg-color: #0f172a;
-      --card-bg: #1e293b;
-      --accent: #3b82f6;
-      --danger: #ef4444;
-      --success: #10b981;
-      --warning: #f59e0b;
+      color-scheme: dark;
+      --bg: #09111f;
+      --panel: #142033;
+      --panel-2: #0f172a;
+      --line: #2b3a55;
       --text: #f8fafc;
-      --text-muted: #94a3b8;
+      --muted: #9fb0c8;
+      --blue: #3b82f6;
+      --green: #10b981;
+      --red: #ef4444;
+      --orange: #f59e0b;
+      --purple: #7c3aed;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: var(--bg-color); color: var(--text); padding: 12px; }
-    
-    header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #334155; }
-    h1 { font-size: 1rem; }
 
-    .header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .counter-box { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); padding: 4px 8px; border-radius: 8px; text-align: center; display: flex; align-items: center; gap: 8px; }
-    .counter-val { font-size: 1.2rem; font-weight: bold; color: var(--danger); }
-    
-    .profile-select { background: #0f172a; color: var(--text); border: 1px solid #475569; padding: 6px; border-radius: 6px; font-size: 0.8rem; }
+    * { box-sizing: border-box; }
 
-    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
-    @media(min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
 
-    .card { background: var(--card-bg); border-radius: 12px; padding: 12px; border: 1px solid #334155; }
-    .card h2 { font-size: 0.9rem; margin-bottom: 8px; color: var(--accent); }
+    .app {
+      width: min(1100px, 100%);
+      margin: 0 auto;
+      padding: 16px;
+    }
 
-    .video-container { position: relative; width: 100%; height: 300px; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    video { width: 100%; height: 100%; object-fit: contain; }
-    
-    /* Smart Wide ROI Overlay (Covers 80% width & 80% height of belt frame) */
-    .roi-overlay {
-      position: absolute;
-      top: 10%; left: 10%; width: 80%; height: 80%;
-      border: 2px dashed var(--warning);
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
-      pointer-events: none;
-      border-radius: 6px;
+    header {
       display: flex;
+      justify-content: space-between;
+      gap: 12px;
       align-items: flex-start;
-      justify-content: center;
+      margin-bottom: 18px;
     }
-    .roi-label { background: var(--warning); color: #000; font-size: 0.65rem; font-weight: bold; padding: 2px 6px; border-radius: 0 0 4px 4px; }
 
-    .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    button, label.btn-upload { background: var(--accent); color: white; border: none; padding: 8px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: bold; cursor: pointer; display: inline-block; text-align: center; }
-    input[type="file"] { display: none; }
-    
-    .status-badge { display: inline-block; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 8px; width: 100%; text-align: center; }
-    .status-pass { background: var(--success); }
-    .status-fail { background: var(--danger); }
-    .status-empty { background: #334155; color: var(--text-muted); }
-    .status-standby { background: var(--warning); color: #000; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(26px, 5vw, 40px); margin-bottom: 4px; }
+    h2 { color: #60a5fa; }
 
-    .slider-group { margin-top: 8px; font-size: 0.75rem; display: flex; align-items: center; gap: 8px; }
-    .slider-group input { flex-grow: 1; }
+    .top-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
 
-    .sample-strip { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; padding-bottom: 4px; min-height: 48px; align-items: center; }
-    .sample-thumb-good { width: 42px; height: 42px; border-radius: 4px; border: 2px solid var(--success); object-fit: cover; }
-    .sample-thumb-bad { width: 42px; height: 42px; border-radius: 4px; border: 2px solid var(--danger); object-fit: cover; }
+    button, .upload-label {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: white;
+      background: #475569;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+    }
 
-    .log-list { max-height: 160px; overflow-y: auto; margin-top: 8px; }
-    .log-item { display: flex; gap: 10px; background: #090d16; padding: 6px; border-radius: 6px; margin-bottom: 4px; border-left: 4px solid var(--danger); align-items: center; }
-    .log-item img { width: 38px; height: 38px; object-fit: cover; border-radius: 4px; }
-    .log-info { font-size: 0.75rem; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .primary { background: var(--blue); }
+    .success { background: var(--green); }
+    .danger { background: var(--red); }
+    .warning { background: var(--orange); color: #111827; }
+    .purple { background: var(--purple); }
+
+    input[type=file] { display: none; }
+
+    .counter {
+      min-width: 118px;
+      border: 2px solid var(--red);
+      border-radius: 14px;
+      padding: 9px 14px;
+      background: #28131b;
+      text-align: center;
+    }
+
+    .counter span {
+      display: block;
+      font-size: 12px;
+      color: #fecaca;
+    }
+
+    .counter strong {
+      font-size: 34px;
+      color: #f87171;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+
+    .camera-stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background: #000;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    video, #overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    video {
+      object-fit: contain;
+      background: black;
+    }
+
+    #overlay { pointer-events: none; }
+
+    .roi-box {
+      position: absolute;
+      border: 4px dashed var(--orange);
+      border-radius: 14px;
+      pointer-events: none;
+    }
+
+    .inspection-band {
+      position: absolute;
+      left: 5%;
+      right: 5%;
+      top: 42%;
+      height: 16%;
+      border-top: 3px solid rgba(16,185,129,.9);
+      border-bottom: 3px solid rgba(16,185,129,.9);
+      background: rgba(16,185,129,.08);
+      pointer-events: none;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .sliders {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .slider-row {
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) 2fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .status {
+      margin-top: 14px;
+      border-radius: 12px;
+      padding: 14px;
+      text-align: center;
+      font-size: clamp(18px, 4vw, 26px);
+      font-weight: 800;
+      background: #334155;
+    }
+
+    .status.ready { background: #1e3a5f; }
+    .status.pass { background: #065f46; }
+    .status.reject { background: #7f1d1d; }
+    .status.inspecting { background: #5b21b6; }
+
+    .debug-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .debug-card {
+      background: #020617;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .debug-card canvas {
+      width: 100%;
+      aspect-ratio: 1;
+      display: block;
+      background: #000;
+    }
+
+    .debug-card div {
+      padding: 8px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .banks {
+      display: grid;
+      gap: 18px;
+    }
+
+    .bank {
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .thumbs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 64px;
+      margin: 10px 0;
+    }
+
+    .thumb {
+      width: 82px;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 3px solid #64748b;
+    }
+
+    .thumb.belt { border-color: #38bdf8; }
+    .thumb.good { border-color: #34d399; }
+    .thumb.bad { border-color: #f87171; }
+
+    .helper { color: var(--muted); line-height: 1.45; }
+    .mini { font-size: 13px; color: var(--muted); }
+
+    .log {
+      display: grid;
+      gap: 10px;
+    }
+
+    .log-item {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 12px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-2);
+    }
+
+    .log-item img {
+      width: 110px;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .metric {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .metric strong { display: block; font-size: 20px; color: #60a5fa; }
+    .metric span { color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 700px) {
+      .debug-grid { grid-template-columns: 1fr 1fr 1fr; }
+      .slider-row { grid-template-columns: 1fr; gap: 5px; }
+      .metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      header { align-items: stretch; }
+      .top-actions { width: 52%; }
+    }
   </style>
 </head>
 <body>
-
+<div class="app">
   <header>
     <div>
-      <h1>Line Inspector Engine</h1>
+      <h1>Universal Line Inspector</h1>
+      <div class="helper">Clean Rebuild V3</div>
     </div>
-    
-    <div class="header-actions">
-      <!-- Profile Loader Dropdown -->
-      <select id="profileSelect" class="profile-select" onchange="loadSelectedProfile()">
-        <option value="">-- Load Saved Profile --</option>
-      </select>
 
-      <!-- Alarm Mute Button -->
-      <button id="muteBtn" onclick="toggleMute()" style="background: #334155;">🔊 Alarm: ON</button>
-      
-      <!-- Counter & Reset Button -->
-      <div class="counter-box">
-        <div style="font-size: 0.65rem;">REJECTS:</div>
-        <div id="defectCount" class="counter-val">0</div>
-        <button onclick="resetCount()" style="background: var(--danger); padding: 2px 6px; font-size: 0.65rem; margin-left: 4px;">Reset</button>
+    <div class="top-actions">
+      <div class="counter">
+        <span>REJECTS</span>
+        <strong id="rejectCount">0</strong>
       </div>
+      <button id="resetRejectBtn">Reset</button>
+      <button id="alarmBtn">🔊 Alarm On</button>
     </div>
   </header>
 
-  <div class="grid">
-    <div class="card">
-      <h2>Live Line View</h2>
-      <div class="video-container">
-        <video id="webcam" autoplay playsinline muted></video>
-        <div class="roi-overlay">
-          <span class="roi-label">WIDE INSPECTION ZONE</span>
-        </div>
-      </div>
-      
-      <div class="controls">
-        <button onclick="startCamera('environment')">Rear Cam</button>
-        <button onclick="startCamera('user')">Front Cam</button>
-        <button id="toggleScanBtn" onclick="toggleScanning()" style="background: var(--success);">Start Line Inspection</button>
-      </div>
+  <section class="panel">
+    <h2>Live Camera</h2>
 
-      <div class="slider-group">
-        <label>Camera Zoom:</label>
-        <input type="range" id="zoomRange" min="1" max="5" step="0.1" value="1" oninput="applyZoom(this.value)">
-        <span id="zoomVal">1.0x</span>
-      </div>
-
-      <div class="slider-group">
-        <label>Sensitivity (Tolerance):</label>
-        <input type="range" id="sensitivity" min="5" max="50" value="20">
-        <span id="sensVal">20%</span>
-      </div>
-
-      <div class="slider-group">
-        <label>Belt Trigger (Presence):</label>
-        <input type="range" id="presenceSens" min="5" max="50" value="20">
-        <span id="presenceVal">20%</span>
-      </div>
-
-      <div id="liveStatus" class="status-badge status-standby">STATUS: STANDBY</div>
+    <div id="cameraStage" class="camera-stage">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div id="roiBox" class="roi-box"></div>
+      <div class="inspection-band"></div>
     </div>
 
-    <div class="card">
-      <h2>Profile Calibration & Setup</h2>
+    <div class="controls">
+      <button id="rearCameraBtn" class="primary">Rear Camera</button>
+      <button id="frontCameraBtn" class="primary">Front Camera</button>
+      <button id="inspectionBtn" class="success">Start Inspection</button>
+      <button id="fullscreenBtn">Full Screen</button>
+    </div>
 
-      <div style="margin-bottom: 8px; background: #0f172a; padding: 8px; border-radius: 6px;">
-        <strong style="font-size: 0.75rem; color: var(--accent);">Profile Management</strong>
-        <div class="controls" style="margin-top: 4px;">
-          <button onclick="saveCurrentProfile()" style="background: #2563eb;">💾 Save Current Profile</button>
-          <button onclick="deleteSelectedProfile()" style="background: #475569;">🗑️ Delete Profile</button>
+    <div class="controls">
+      <button id="fullRoiBtn">Full ROI</button>
+      <button id="verticalRoiBtn">Vertical Belt ROI</button>
+      <button id="horizontalRoiBtn">Horizontal Belt ROI</button>
+    </div>
+
+    <div class="sliders">
+      <div class="slider-row">
+        <label for="goodThreshold">Good-match tolerance</label>
+        <input id="goodThreshold" type="range" min="5" max="35" value="14" />
+        <span id="goodThresholdValue">14%</span>
+      </div>
+      <div class="slider-row">
+        <label for="pixelThreshold">Belt subtraction</label>
+        <input id="pixelThreshold" type="range" min="25" max="110" value="62" />
+        <span id="pixelThresholdValue">62</span>
+      </div>
+      <div class="slider-row">
+        <label for="minimumArea">Minimum object size</label>
+        <input id="minimumArea" type="range" min="2" max="30" value="6" />
+        <span id="minimumAreaValue">6%</span>
+      </div>
+    </div>
+
+    <div id="status" class="status ready">READY — CALIBRATE FIRST</div>
+
+    <div class="metrics">
+      <div class="metric"><strong id="fpsMetric">0</strong><span>Processing FPS</span></div>
+      <div class="metric"><strong id="trackMetric">0</strong><span>Active tracks</span></div>
+      <div class="metric"><strong id="latencyMetric">—</strong><span>Last decision</span></div>
+      <div class="metric"><strong id="decisionMetric">—</strong><span>Last result</span></div>
+    </div>
+
+    <div class="debug-grid">
+      <div class="debug-card"><canvas id="roiCanvas"></canvas><div>ROI</div></div>
+      <div class="debug-card"><canvas id="maskCanvas"></canvas><div>Foreground Mask</div></div>
+      <div class="debug-card"><canvas id="productCanvas"></canvas><div>Detected Product</div></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Calibration</h2>
+    <div class="banks">
+      <div class="bank">
+        <h3>Empty Belt Bank (<span id="beltCount">0</span>)</h3>
+        <div id="beltThumbs" class="thumbs"></div>
+        <div class="controls">
+          <button id="snapBeltBtn">Capture Belt</button>
+          <label class="upload-label">Upload Belt<input id="uploadBelt" type="file" accept="image/*" multiple></label>
+          <button id="clearBeltBtn">Clear</button>
+          <button id="burstBeltBtn">Capture Belt Burst</button>
         </div>
       </div>
-      
-      <div style="margin-bottom: 6px;">
-        <strong style="font-size: 0.75rem; color: var(--text-muted);">1. Belt Calibration</strong>
-        <div class="controls" style="margin-top: 4px;">
-          <button onclick="captureBeltFromCamera()" style="background: #334155;">Calibrate Empty Belt Baseline</button>
+
+      <div class="bank">
+        <h3 style="color:#34d399">Good Sample Bank (<span id="goodCount">0</span>)</h3>
+        <div id="goodThumbs" class="thumbs"></div>
+        <div class="controls">
+          <button id="snapGoodBtn" class="success">Capture Good</button>
+          <label class="upload-label success">Upload Good<input id="uploadGood" type="file" accept="image/*" multiple></label>
+          <button id="clearGoodBtn">Clear</button>
+          <button id="burstGoodBtn" class="success">Capture Good Burst</button>
         </div>
       </div>
 
-      <hr style="border: 0; border-top: 1px solid #334155; margin: 6px 0;">
-
-      <div style="margin-bottom: 6px;">
-        <strong style="font-size: 0.75rem; color: var(--success);">2. Good Target Samples (<span id="goodCount">0</span>)</strong>
-        <div id="goodStrip" class="sample-strip"></div>
-        <div class="controls" style="margin-top: 4px;">
-          <button onclick="captureGoodSample()" style="background: var(--success);">+ Snap Good</button>
-          <label class="btn-upload" style="background: var(--success);">
-            📁 Upload Good
-            <input type="file" accept="image/*" multiple onchange="uploadGoodImage(event)">
-          </label>
-          <button onclick="clearGoodSamples()" style="background: #334155;">Clear</button>
-        </div>
-      </div>
-
-      <hr style="border: 0; border-top: 1px solid #334155; margin: 6px 0;">
-
-      <div>
-        <strong style="font-size: 0.75rem; color: var(--danger);">3. Defect/Reject Bank (<span id="badCount">0</span>)</strong>
-        <div id="badStrip" class="sample-strip"></div>
-        <div class="controls" style="margin-top: 4px;">
-          <button onclick="captureBadSample()" style="background: var(--danger);">+ Snap Reject</button>
-          <label class="btn-upload" style="background: var(--danger);">
-            📁 Upload Reject
-            <input type="file" accept="image/*" multiple onchange="uploadBadImage(event)">
-          </label>
-          <button onclick="clearBadSamples()" style="background: #334155;">Clear</button>
+      <div class="bank">
+        <h3 style="color:#f87171">Known Reject Bank — Optional (<span id="badCount">0</span>)</h3>
+        <div id="badThumbs" class="thumbs"></div>
+        <div class="controls">
+          <button id="snapBadBtn" class="danger">Capture Reject</button>
+          <label class="upload-label danger">Upload Reject<input id="uploadBad" type="file" accept="image/*" multiple></label>
+          <button id="clearBadBtn">Clear</button>
+          <button id="burstBadBtn" class="danger">Capture Reject Burst</button>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="card" style="margin-top: 12px;">
-    <h2>Defect Audit Log</h2>
-    <div id="logList" class="log-list"></div>
-  </div>
+    <div class="controls">
+      <button id="calibrateBtn" class="warning">Calibrate System</button>
+      <button id="saveProfileBtn">Save Profile</button>
+      <button id="loadProfileBtn">Load Profile</button>
+      <button id="clearProfileBtn">Delete Saved Profile</button>
+    </div>
 
-  <canvas id="procCanvas" width="128" height="128" style="display:none;"></canvas>
+    <p id="calibrationMessage" class="helper">
+      Capture at least 3 empty-belt frames and 3 good-product frames. Bad samples are optional.
+    </p>
+  </section>
 
-  <script>
-    const video = document.getElementById('webcam');
-    const procCanvas = document.getElementById('procCanvas');
-    const procCtx = procCanvas.getContext('2d');
-    
-    const sensitivityInput = document.getElementById('sensitivity');
-    const sensValDisplay = document.getElementById('sensVal');
-    const presenceInput = document.getElementById('presenceSens');
-    const presenceValDisplay = document.getElementById('presenceVal');
-    const zoomRange = document.getElementById('zoomRange');
-    const zoomValDisplay = document.getElementById('zoomVal');
-    
-    const liveStatus = document.getElementById('liveStatus');
-    const logList = document.getElementById('logList');
-    const muteBtn = document.getElementById('muteBtn');
-    const profileSelect = document.getElementById('profileSelect');
+  <section class="panel">
+    <h2>Activity Log</h2>
+    <div id="activityLog" class="log"></div>
+  </section>
+</div>
 
-    let isScanning = false;
-    let defectCount = 0;
-    
-    let goodHistograms = [];
-    let goodThumbnails = [];
-    let badHistograms = [];
-    let badThumbnails = [];
-    let beltColor = { r: 0, g: 100, b: 200 }; // Default blue belt baseline
-    
-    let hasLoggedCurrentDefect = false;
-    let isMuted = false;
-    let animationFrameId = null;
+<script>
+"use strict";
 
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const PROCESS_W = 320;
+const PROCESS_H = 240;
+const LOOP_INTERVAL_MS = 70;
+const TRACK_MATCH_DISTANCE = 85;
+const TRACK_MAX_MISSES = 6;
+const MIN_TRACK_AGE = 2;
+const DECISION_LOCK_MS = 1200;
+const MAX_LOG_ITEMS = 30;
+const BURST_FRAMES = 12;
 
-    function triggerAlarm() {
-      if (isMuted) return;
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.2);
+const video = document.getElementById("video");
+const stage = document.getElementById("cameraStage");
+const overlay = document.getElementById("overlay");
+const overlayCtx = overlay.getContext("2d");
+const roiBox = document.getElementById("roiBox");
+
+const roiCanvas = document.getElementById("roiCanvas");
+const maskCanvas = document.getElementById("maskCanvas");
+const productCanvas = document.getElementById("productCanvas");
+
+const roiCtx = roiCanvas.getContext("2d", { willReadFrequently: true });
+const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
+const productCtx = productCanvas.getContext("2d", { willReadFrequently: true });
+
+const workCanvas = document.createElement("canvas");
+workCanvas.width = PROCESS_W;
+workCanvas.height = PROCESS_H;
+const workCtx = workCanvas.getContext("2d", { willReadFrequently: true });
+
+let stream = null;
+let running = false;
+let calibrated = false;
+let animationId = 0;
+let lastLoopAt = 0;
+let lastFpsAt = performance.now();
+let processedFrames = 0;
+let alarmEnabled = true;
+let rejectCount = 0;
+
+let ROI = { x: 0.02, y: 0.02, width: 0.96, height: 0.96 };
+
+let beltSamples = [];
+let goodSamples = [];
+let badSamples = [];
+let beltModel = null;
+
+let nextTrackId = 1;
+const tracks = new Map();
+const recentLocks = [];
+
+const $ = id => document.getElementById(id);
+
+function cloneImageData(imageData) {
+  return new ImageData(
+    new Uint8ClampedArray(imageData.data),
+    imageData.width,
+    imageData.height
+  );
+}
+
+function imageDataToUrl(imageData, quality = 0.82) {
+  const canvas = document.createElement("canvas");
+  canvas.width = imageData.width;
+  canvas.height = imageData.height;
+  canvas.getContext("2d").putImageData(imageData, 0, 0);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+function setStatus(message, type = "ready") {
+  const node = $("status");
+  node.textContent = message;
+  node.className = `status ${type}`;
+}
+
+function updateTopUI() {
+  $("rejectCount").textContent = String(rejectCount);
+  $("alarmBtn").textContent = alarmEnabled ? "🔊 Alarm On" : "🔇 Alarm Muted";
+}
+
+function beep() {
+  if (!alarmEnabled) return;
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const context = new AudioContextClass();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+
+    oscillator.type = "square";
+    oscillator.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.3, context.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.45);
+
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.48);
+  } catch (error) {
+    console.warn("Alarm unavailable:", error);
+  }
+}
+
+function updateSliderLabels() {
+  $("goodThresholdValue").textContent = `${$("goodThreshold").value}%`;
+  $("pixelThresholdValue").textContent = $("pixelThreshold").value;
+  $("minimumAreaValue").textContent = `${$("minimumArea").value}%`;
+}
+
+function resizeStage() {
+  const w = video.videoWidth || 4;
+  const h = video.videoHeight || 3;
+  stage.style.aspectRatio = `${w} / ${h}`;
+
+  const rect = stage.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+
+  overlay.width = Math.round(rect.width * dpr);
+  overlay.height = Math.round(rect.height * dpr);
+  overlay.style.width = `${rect.width}px`;
+  overlay.style.height = `${rect.height}px`;
+  overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  updateRoiOverlay();
+}
+
+function displayedVideoRect() {
+  const stageW = stage.clientWidth;
+  const stageH = stage.clientHeight;
+  const sourceW = video.videoWidth || 4;
+  const sourceH = video.videoHeight || 3;
+  const scale = Math.min(stageW / sourceW, stageH / sourceH);
+  const drawW = sourceW * scale;
+  const drawH = sourceH * scale;
+
+  return {
+    x: (stageW - drawW) / 2,
+    y: (stageH - drawH) / 2,
+    width: drawW,
+    height: drawH
+  };
+}
+
+function updateRoiOverlay() {
+  const rect = displayedVideoRect();
+  roiBox.style.left = `${rect.x + rect.width * ROI.x}px`;
+  roiBox.style.top = `${rect.y + rect.height * ROI.y}px`;
+  roiBox.style.width = `${rect.width * ROI.width}px`;
+  roiBox.style.height = `${rect.height * ROI.height}px`;
+}
+
+async function startCamera(facingMode) {
+  try {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
     }
 
-    function toggleMute() {
-      isMuted = !isMuted;
-      muteBtn.innerText = isMuted ? "🔇 Alarm: OFF" : "🔊 Alarm: ON";
-      muteBtn.style.background = isMuted ? "var(--danger)" : "#334155";
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: facingMode },
+        width: { ideal: 1920 },
+        height: { ideal: 1440 },
+        frameRate: { ideal: 60, min: 24 }
+      },
+      audio: false
+    });
+
+    video.srcObject = stream;
+    await video.play();
+    resizeStage();
+    setStatus(calibrated ? "READY FOR PRODUCT" : "CAMERA READY — CALIBRATE", "ready");
+  } catch (error) {
+    setStatus(`CAMERA ERROR — ${error.message}`, "reject");
+  }
+}
+
+function setRoi(type) {
+  if (type === "vertical") {
+    ROI = { x: 0.16, y: 0.02, width: 0.68, height: 0.96 };
+  } else if (type === "horizontal") {
+    ROI = { x: 0.02, y: 0.17, width: 0.96, height: 0.66 };
+  } else {
+    ROI = { x: 0.02, y: 0.02, width: 0.96, height: 0.96 };
+  }
+
+  calibrated = false;
+  beltModel = null;
+  tracks.clear();
+  updateRoiOverlay();
+  setStatus("ROI CHANGED — RECALIBRATE", "inspecting");
+}
+
+function captureRoi() {
+  if (!video.videoWidth || !video.videoHeight) {
+    throw new Error("Camera is not ready");
+  }
+
+  const sx = Math.round(video.videoWidth * ROI.x);
+  const sy = Math.round(video.videoHeight * ROI.y);
+  const sw = Math.max(1, Math.round(video.videoWidth * ROI.width));
+  const sh = Math.max(1, Math.round(video.videoHeight * ROI.height));
+
+  workCtx.clearRect(0, 0, PROCESS_W, PROCESS_H);
+  workCtx.drawImage(video, sx, sy, sw, sh, 0, 0, PROCESS_W, PROCESS_H);
+  const imageData = workCtx.getImageData(0, 0, PROCESS_W, PROCESS_H);
+
+  roiCanvas.width = PROCESS_W;
+  roiCanvas.height = PROCESS_H;
+  roiCtx.putImageData(imageData, 0, 0);
+
+  return imageData;
+}
+
+function featureVector(imageData) {
+  const bins = 8;
+  const hist = new Float32Array(24);
+  const grid = 6;
+  const spatial = new Float32Array(grid * grid * 4);
+  const counts = new Uint32Array(grid * grid);
+  const hashW = 16;
+  const hash = new Float32Array(hashW * hashW);
+  const hashCounts = new Uint16Array(hashW * hashW);
+
+  const { width, height, data } = imageData;
+  let total = 0;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+
+      hist[Math.min(7, r >> 5)]++;
+      hist[8 + Math.min(7, g >> 5)]++;
+      hist[16 + Math.min(7, b >> 5)]++;
+
+      const gx = Math.min(grid - 1, Math.floor(x / width * grid));
+      const gy = Math.min(grid - 1, Math.floor(y / height * grid));
+      const gi = gy * grid + gx;
+      const o = gi * 4;
+
+      spatial[o] += r / 255;
+      spatial[o + 1] += g / 255;
+      spatial[o + 2] += b / 255;
+      spatial[o + 3] += gray / 255;
+      counts[gi]++;
+
+      const hx = Math.min(hashW - 1, Math.floor(x / width * hashW));
+      const hy = Math.min(hashW - 1, Math.floor(y / height * hashW));
+      const hi = hy * hashW + hx;
+      hash[hi] += gray;
+      hashCounts[hi]++;
+      total++;
     }
+  }
 
-    function resetCount() {
-      defectCount = 0;
-      document.getElementById('defectCount').innerText = '0';
-      logList.innerHTML = '';
+  for (let i = 0; i < hist.length; i++) hist[i] /= Math.max(1, total);
+  for (let i = 0; i < counts.length; i++) {
+    const c = Math.max(1, counts[i]);
+    const o = i * 4;
+    spatial[o] /= c;
+    spatial[o + 1] /= c;
+    spatial[o + 2] /= c;
+    spatial[o + 3] /= c;
+  }
+  for (let i = 0; i < hash.length; i++) hash[i] /= Math.max(1, hashCounts[i]);
+
+  const mean = hash.reduce((a, b) => a + b, 0) / hash.length;
+  const bits = Array.from(hash, value => value >= mean ? 1 : 0);
+
+  return {
+    version: 1,
+    hist: Array.from(hist),
+    spatial: Array.from(spatial),
+    bits
+  };
+}
+
+function averageAbs(a, b) {
+  let total = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) total += Math.abs(a[i] - b[i]);
+  return n ? total / n : 1;
+}
+
+function featureDifference(a, b) {
+  if (!a || !b || a.version !== 1 || b.version !== 1) return 100;
+
+  let hist = 0;
+  for (let i = 0; i < a.hist.length; i++) {
+    hist += Math.abs(a.hist[i] - b.hist[i]);
+  }
+
+  let hashDiff = 0;
+  for (let i = 0; i < a.bits.length; i++) {
+    if (a.bits[i] !== b.bits[i]) hashDiff++;
+  }
+
+  const histScore = Math.min(100, hist / 2 * 100);
+  const spatialScore = Math.min(100, averageAbs(a.spatial, b.spatial) * 100);
+  const hashScore = hashDiff / a.bits.length * 100;
+
+  return histScore * 0.2 + spatialScore * 0.45 + hashScore * 0.35;
+}
+
+function nearest(feature, samples) {
+  let difference = Infinity;
+  let index = -1;
+
+  samples.forEach((sample, i) => {
+    const value = featureDifference(feature, sample.feature);
+    if (value < difference) {
+      difference = value;
+      index = i;
     }
+  });
 
-    sensitivityInput.oninput = () => sensValDisplay.innerText = `${sensitivityInput.value}%`;
-    presenceInput.oninput = () => presenceValDisplay.innerText = `${presenceInput.value}%`;
+  return { difference, index };
+}
 
-    async function startCamera(facingMode = 'environment') {
-      if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false
-        });
-        video.srcObject = stream;
-      } catch (err) {
-        alert("Camera error: " + err.message);
-      }
+function rotate180(imageData) {
+  const output = new ImageData(imageData.width, imageData.height);
+  const pixels = imageData.width * imageData.height;
+
+  for (let p = 0; p < pixels; p++) {
+    const source = p * 4;
+    const target = (pixels - 1 - p) * 4;
+
+    output.data[target] = imageData.data[source];
+    output.data[target + 1] = imageData.data[source + 1];
+    output.data[target + 2] = imageData.data[source + 2];
+    output.data[target + 3] = imageData.data[source + 3];
+  }
+
+  return output;
+}
+
+function buildBeltModel() {
+  const size = PROCESS_W * PROCESS_H * 3;
+  const model = new Float32Array(size);
+
+  for (const sample of beltSamples) {
+    const data = sample.imageData.data;
+    for (let p = 0; p < PROCESS_W * PROCESS_H; p++) {
+      const i = p * 4;
+      const m = p * 3;
+      model[m] += data[i];
+      model[m + 1] += data[i + 1];
+      model[m + 2] += data[i + 2];
     }
+  }
 
-    function applyZoom(val) {
-      zoomValDisplay.innerText = `${parseFloat(val).toFixed(1)}x`;
-      video.style.transform = `scale(${val})`;
-      video.style.transformOrigin = "center center";
-    }
+  for (let i = 0; i < size; i++) model[i] /= beltSamples.length;
+  beltModel = model;
+}
 
-    // Capture Wide ROI: 10% margin, 80% width, 80% height (Covers main belt)
-    function getROICanvas(source) {
-      const sw = source.videoWidth || source.width;
-      const sh = source.videoHeight || source.height;
-      
-      const sx = sw * 0.10;
-      const sy = sh * 0.10;
-      const sWidth = sw * 0.80;
-      const sHeight = sh * 0.80;
+function createMask(imageData) {
+  const threshold = Number($("pixelThreshold").value);
+  const mask = new Uint8Array(PROCESS_W * PROCESS_H);
 
-      procCtx.drawImage(source, sx, sy, sWidth, sHeight, 0, 0, 128, 128);
-      return procCtx.getImageData(0, 0, 128, 128);
-    }
+  for (let p = 0; p < mask.length; p++) {
+    const i = p * 4;
+    const m = p * 3;
+    const dr = imageData.data[i] - beltModel[m];
+    const dg = imageData.data[i + 1] - beltModel[m + 1];
+    const db = imageData.data[i + 2] - beltModel[m + 2];
+    const distance = Math.sqrt(dr * dr + dg * dg + db * db);
+    mask[p] = distance >= threshold ? 255 : 0;
+  }
 
-    function processFrame(imageData) {
-      const hist = new Float32Array(16).fill(0);
-      const data = imageData.data;
-      let nonBeltPixels = 0;
+  // One simple close operation.
+  const dilated = new Uint8Array(mask.length);
+  const cleaned = new Uint8Array(mask.length);
 
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i+1], b = data[i+2];
-
-        // Euclidean distance from calibrated belt baseline
-        const dist = Math.sqrt((r-beltColor.r)**2 + (g-beltColor.g)**2 + (b-beltColor.b)**2);
-        
-        if (dist > 45) { 
-          nonBeltPixels++;
-          const brightness = (r + g + b) / 3;
-          const bin = Math.floor((brightness / 256) * 16);
-          hist[bin]++;
-        }
-      }
-
-      const total = nonBeltPixels || 1;
-      for (let i = 0; i < 16; i++) hist[i] /= total;
-
-      return { hist, coverage: nonBeltPixels / (data.length / 4) };
-    }
-
-    function compareHistograms(h1, h2) {
-      let diff = 0;
-      for (let i = 0; i < 16; i++) diff += Math.abs(h1[i] - h2[i]);
-      return (diff / 2) * 100;
-    }
-
-    function captureBeltFromCamera() {
-      const data = getROICanvas(video).data;
-      let r = 0, g = 0, b = 0, count = data.length / 4;
-      for (let i = 0; i < data.length; i += 4) {
-        r += data[i]; g += data[i+1]; b += data[i+2];
-      }
-      beltColor = { r: r/count, g: g/count, b: b/count };
-      alert("Belt baseline calibrated successfully!");
-    }
-
-    function captureGoodSample() {
-      const roiData = getROICanvas(video);
-      goodHistograms.push(processFrame(roiData).hist);
-      goodThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
-      renderStrips();
-    }
-
-    function uploadGoodImage(e) {
-      Array.from(e.target.files).forEach(file => {
-        const img = new Image();
-        img.onload = () => {
-          goodHistograms.push(processFrame(getROICanvas(img)).hist);
-          goodThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
-          renderStrips();
-        };
-        img.src = URL.createObjectURL(file);
-      });
-    }
-
-    function captureBadSample() {
-      const roiData = getROICanvas(video);
-      badHistograms.push(processFrame(roiData).hist);
-      badThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
-      renderStrips();
-    }
-
-    function uploadBadImage(e) {
-      Array.from(e.target.files).forEach(file => {
-        const img = new Image();
-        img.onload = () => {
-          badHistograms.push(processFrame(getROICanvas(img)).hist);
-          badThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
-          renderStrips();
-        };
-        img.src = URL.createObjectURL(file);
-      });
-    }
-
-    function clearGoodSamples() { goodHistograms = []; goodThumbnails = []; renderStrips(); }
-    function clearBadSamples() { badHistograms = []; badThumbnails = []; renderStrips(); }
-
-    function renderStrips() {
-      const gContainer = document.getElementById('goodStrip');
-      gContainer.innerHTML = '';
-      goodThumbnails.forEach(url => {
-        const img = document.createElement('img');
-        img.src = url; img.className = 'sample-thumb-good';
-        gContainer.appendChild(img);
-      });
-      document.getElementById('goodCount').innerText = goodThumbnails.length;
-
-      const bContainer = document.getElementById('badStrip');
-      bContainer.innerHTML = '';
-      badThumbnails.forEach(url => {
-        const img = document.createElement('img');
-        img.src = url; img.className = 'sample-thumb-bad';
-        bContainer.appendChild(img);
-      });
-      document.getElementById('badCount').innerText = badThumbnails.length;
-    }
-
-    /* === PROFILE MANAGEMENT (LOCAL STORAGE) === */
-
-    function saveCurrentProfile() {
-      if (goodHistograms.length === 0) {
-        alert("Please add at least ONE good target sample before saving profile.");
-        return;
-      }
-      const profileName = prompt("Enter a name for this product profile (e.g. Graze Oats 200g):");
-      if (!profileName) return;
-
-      const profileData = {
-        name: profileName,
-        beltColor: beltColor,
-        sensitivity: sensitivityInput.value,
-        presenceSens: presenceInput.value,
-        goodHistograms: goodHistograms.map(h => Array.from(h)),
-        goodThumbnails: goodThumbnails,
-        badHistograms: badHistograms.map(h => Array.from(h)),
-        badThumbnails: badThumbnails
-      };
-
-      let savedProfiles = JSON.parse(localStorage.getItem('line_inspector_profiles') || '{}');
-      savedProfiles[profileName] = profileData;
-      localStorage.setItem('line_inspector_profiles', JSON.stringify(savedProfiles));
-
-      populateProfileDropdown();
-      profileSelect.value = profileName;
-      alert(`Profile "${profileName}" saved successfully!`);
-    }
-
-    function populateProfileDropdown() {
-      let savedProfiles = JSON.parse(localStorage.getItem('line_inspector_profiles') || '{}');
-      profileSelect.innerHTML = '<option value="">-- Load Saved Profile --</option>';
-      for (let name in savedProfiles) {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.innerText = name;
-        profileSelect.appendChild(opt);
-      }
-    }
-
-    function loadSelectedProfile() {
-      const name = profileSelect.value;
-      if (!name) return;
-
-      let savedProfiles = JSON.parse(localStorage.getItem('line_inspector_profiles') || '{}');
-      const p = savedProfiles[name];
-      if (!p) return;
-
-      beltColor = p.beltColor;
-      sensitivityInput.value = p.sensitivity;
-      sensValDisplay.innerText = `${p.sensitivity}%`;
-      presenceInput.value = p.presenceSens;
-      presenceValDisplay.innerText = `${p.presenceSens}%`;
-
-      goodHistograms = p.goodHistograms.map(arr => new Float32Array(arr));
-      goodThumbnails = p.goodThumbnails || [];
-      badHistograms = p.badHistograms.map(arr => new Float32Array(arr));
-      badThumbnails = p.badThumbnails || [];
-
-      renderStrips();
-      alert(`Loaded profile: ${name}`);
-    }
-
-    function deleteSelectedProfile() {
-      const name = profileSelect.value;
-      if (!name) { alert("Select a profile to delete."); return; }
-      if (confirm(`Delete profile "${name}"?`)) {
-        let savedProfiles = JSON.parse(localStorage.getItem('line_inspector_profiles') || '{}');
-        delete savedProfiles[name];
-        localStorage.setItem('line_inspector_profiles', JSON.stringify(savedProfiles));
-        populateProfileDropdown();
-        alert("Profile deleted.");
-      }
-    }
-
-    /* === INSPECTION SCAN LOOP === */
-
-    function toggleScanning() {
-      if (goodHistograms.length === 0) {
-        alert("Please load a Profile or add Good Samples first!");
-        return;
-      }
-      isScanning = !isScanning;
-      const btn = document.getElementById('toggleScanBtn');
-      if (isScanning) {
-        btn.innerText = "Stop Inspection";
-        btn.style.background = "var(--danger)";
-        scanLoop();
-      } else {
-        btn.innerText = "Start Line Inspection";
-        btn.style.background = "var(--success)";
-        cancelAnimationFrame(animationFrameId);
-        liveStatus.className = "status-badge status-standby";
-        liveStatus.innerText = "STATUS: STANDBY";
-      }
-    }
-
-    function scanLoop() {
-      if (!isScanning) return;
-      
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        const roiData = getROICanvas(video);
-        const { hist: currentHist, coverage } = processFrame(roiData);
-        
-        const triggerThreshold = parseFloat(presenceInput.value) / 100;
-
-        if (coverage < triggerThreshold) {
-          liveStatus.className = "status-badge status-empty";
-          liveStatus.innerText = "BELT CLEAR";
-          hasLoggedCurrentDefect = false;
-        } else {
-          let minGoodDiff = Math.min(...goodHistograms.map(h => compareHistograms(h, currentHist)));
-          let minBadDiff = badHistograms.length > 0 ? Math.min(...badHistograms.map(h => compareHistograms(h, currentHist))) : 999;
-
-          const defectLimit = parseFloat(sensitivityInput.value);
-          const isRejectMatch = minBadDiff < minGoodDiff && minBadDiff < defectLimit;
-          const isDeviation = minGoodDiff > defectLimit;
-
-          if (isDeviation || isRejectMatch) {
-            liveStatus.className = "status-badge status-fail";
-            liveStatus.innerText = `DEFECT DETECTED (${minGoodDiff.toFixed(1)}% Shift)`;
-
-            if (!hasLoggedCurrentDefect) {
-              triggerAlarm();
-              logDefect(minGoodDiff);
-              hasLoggedCurrentDefect = true;
-            }
-          } else {
-            liveStatus.className = "status-badge status-pass";
-            liveStatus.innerText = `PASS (${minGoodDiff.toFixed(1)}% Match)`;
+  for (let y = 1; y < PROCESS_H - 1; y++) {
+    for (let x = 1; x < PROCESS_W - 1; x++) {
+      let on = 0;
+      for (let oy = -1; oy <= 1 && !on; oy++) {
+        for (let ox = -1; ox <= 1; ox++) {
+          if (mask[(y + oy) * PROCESS_W + x + ox]) {
+            on = 255;
+            break;
           }
         }
       }
+      dilated[y * PROCESS_W + x] = on;
+    }
+  }
 
-      animationFrameId = requestAnimationFrame(scanLoop);
+  for (let y = 1; y < PROCESS_H - 1; y++) {
+    for (let x = 1; x < PROCESS_W - 1; x++) {
+      let on = 255;
+      for (let oy = -1; oy <= 1 && on; oy++) {
+        for (let ox = -1; ox <= 1; ox++) {
+          if (!dilated[(y + oy) * PROCESS_W + x + ox]) {
+            on = 0;
+            break;
+          }
+        }
+      }
+      cleaned[y * PROCESS_W + x] = on;
+    }
+  }
+
+  const maskImage = maskCtx.createImageData(PROCESS_W, PROCESS_H);
+  for (let p = 0; p < cleaned.length; p++) {
+    const v = cleaned[p];
+    const i = p * 4;
+    maskImage.data[i] = v;
+    maskImage.data[i + 1] = v;
+    maskImage.data[i + 2] = v;
+    maskImage.data[i + 3] = 255;
+  }
+
+  maskCanvas.width = PROCESS_W;
+  maskCanvas.height = PROCESS_H;
+  maskCtx.putImageData(maskImage, 0, 0);
+
+  return cleaned;
+}
+
+function components(mask) {
+  const visited = new Uint8Array(mask.length);
+  const result = [];
+  const minArea = Number($("minimumArea").value) / 100 * PROCESS_W * PROCESS_H;
+
+  for (let y = 0; y < PROCESS_H; y++) {
+    for (let x = 0; x < PROCESS_W; x++) {
+      const start = y * PROCESS_W + x;
+      if (!mask[start] || visited[start]) continue;
+
+      const stack = [start];
+      visited[start] = 1;
+      let count = 0;
+      let minX = x, maxX = x, minY = y, maxY = y;
+
+      while (stack.length) {
+        const p = stack.pop();
+        const px = p % PROCESS_W;
+        const py = Math.floor(p / PROCESS_W);
+        count++;
+
+        minX = Math.min(minX, px);
+        maxX = Math.max(maxX, px);
+        minY = Math.min(minY, py);
+        maxY = Math.max(maxY, py);
+
+        const neighbours = [
+          p - 1, p + 1, p - PROCESS_W, p + PROCESS_W
+        ];
+
+        for (const n of neighbours) {
+          if (n < 0 || n >= mask.length || visited[n] || !mask[n]) continue;
+          const nx = n % PROCESS_W;
+          const ny = Math.floor(n / PROCESS_W);
+          if (Math.abs(nx - px) + Math.abs(ny - py) !== 1) continue;
+          visited[n] = 1;
+          stack.push(n);
+        }
+      }
+
+      const width = maxX - minX + 1;
+      const height = maxY - minY + 1;
+      const boxArea = width * height;
+      const fill = count / boxArea;
+
+      if (
+        count >= minArea &&
+        fill >= 0.12 &&
+        width >= PROCESS_W * 0.12 &&
+        height >= PROCESS_H * 0.12 &&
+        boxArea <= PROCESS_W * PROCESS_H * 0.85
+      ) {
+        result.push({
+          x: minX, y: minY, width, height, count, fill,
+          centreX: minX + width / 2,
+          centreY: minY + height / 2
+        });
+      }
+    }
+  }
+
+  return result.sort((a, b) => b.count - a.count).slice(0, 6);
+}
+
+function cropProduct(imageData, box) {
+  const padX = Math.round(box.width * 0.06);
+  const padY = Math.round(box.height * 0.06);
+  const sx = Math.max(0, box.x - padX);
+  const sy = Math.max(0, box.y - padY);
+  const sw = Math.min(PROCESS_W - sx, box.width + padX * 2);
+  const sh = Math.min(PROCESS_H - sy, box.height + padY * 2);
+
+  const src = document.createElement("canvas");
+  src.width = PROCESS_W;
+  src.height = PROCESS_H;
+  src.getContext("2d").putImageData(imageData, 0, 0);
+
+  const out = document.createElement("canvas");
+  out.width = 240;
+  out.height = 180;
+  const ctx = out.getContext("2d", { willReadFrequently: true });
+
+  const scale = Math.min(out.width / sw, out.height / sh);
+  const dw = sw * scale;
+  const dh = sh * scale;
+  const dx = (out.width - dw) / 2;
+  const dy = (out.height - dh) / 2;
+
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh);
+
+  const result = ctx.getImageData(0, 0, out.width, out.height);
+  productCanvas.width = out.width;
+  productCanvas.height = out.height;
+  productCtx.putImageData(result, 0, 0);
+
+  return result;
+}
+
+function classify(imageData) {
+  const started = performance.now();
+  const feature = featureVector(imageData);
+  const good = nearest(feature, goodSamples);
+  const bad = badSamples.length ? nearest(feature, badSamples) : { difference: Infinity, index: -1 };
+  const rotatedGood = nearest(featureVector(rotate180(imageData)), goodSamples);
+  const threshold = Number($("goodThreshold").value);
+
+  let rejected = true;
+  let reason = "Unknown product";
+
+  if (rotatedGood.difference + 2 < good.difference) {
+    rejected = true;
+    reason = "Upside-down orientation";
+  } else if (bad.difference + 2 < good.difference) {
+    rejected = true;
+    reason = "Matches known reject";
+  } else if (good.difference <= threshold) {
+    rejected = false;
+    reason = "Confirmed good match";
+  } else {
+    rejected = true;
+    reason = "Does not match accepted good samples";
+  }
+
+  return {
+    rejected,
+    reason,
+    goodDifference: good.difference,
+    badDifference: bad.difference,
+    latency: performance.now() - started
+  };
+}
+
+function distance(a, b) {
+  return Math.hypot(a.centreX - b.centreX, a.centreY - b.centreY);
+}
+
+function iou(a, b) {
+  const x1 = Math.max(a.x, b.x);
+  const y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.width, b.x + b.width);
+  const y2 = Math.min(a.y + a.height, b.y + b.height);
+  const overlap = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+  const union = a.width * a.height + b.width * b.height - overlap;
+  return union ? overlap / union : 0;
+}
+
+function pruneLocks() {
+  const now = performance.now();
+  while (recentLocks.length && now - recentLocks[0].time > DECISION_LOCK_MS) {
+    recentLocks.shift();
+  }
+}
+
+function recentlyDecided(box) {
+  pruneLocks();
+  return recentLocks.some(lock =>
+    Math.hypot(lock.centreX - box.centreX, lock.centreY - box.centreY) < 70
+  );
+}
+
+function addLog(track, result, imageData) {
+  const item = document.createElement("div");
+  item.className = "log-item";
+  const url = imageDataToUrl(imageData);
+  const titleColor = result.rejected ? "#f87171" : "#4ade80";
+  const title = result.rejected ? "REJECT" : "PASS";
+
+  item.innerHTML = `
+    <img src="${url}" alt="${title} snapshot">
+    <div>
+      <strong style="color:${titleColor}">${title} · Product ID ${track.id}</strong><br>
+      ${new Date().toLocaleTimeString()}<br>
+      ${result.reason}<br>
+      Good difference: ${result.goodDifference.toFixed(1)}%<br>
+      Decision time: ${Math.round(result.latency)} ms
+    </div>
+  `;
+
+  const log = $("activityLog");
+  log.prepend(item);
+
+  while (log.children.length > MAX_LOG_ITEMS) {
+    log.lastElementChild.remove();
+  }
+}
+
+function decideTrack(track) {
+  if (track.decided || !track.bestImage) return;
+
+  const result = classify(track.bestImage);
+  track.decided = true;
+  track.result = result;
+
+  recentLocks.push({
+    time: performance.now(),
+    centreX: track.box.centreX,
+    centreY: track.box.centreY
+  });
+
+  $("latencyMetric").textContent = `${Math.round(result.latency)} ms`;
+  $("decisionMetric").textContent = result.rejected ? "REJECT" : "PASS";
+
+  if (result.rejected) {
+    rejectCount++;
+    updateTopUI();
+    beep();
+    setStatus(`REJECT — ${result.reason}`, "reject");
+  } else {
+    setStatus(`PASS — ${result.reason}`, "pass");
+  }
+
+  addLog(track, result, track.bestImage);
+}
+
+function updateTracks(boxes, frame) {
+  const unmatched = new Set(boxes.map((_, i) => i));
+
+  for (const track of tracks.values()) {
+    let bestIndex = -1;
+    let bestScore = -Infinity;
+
+    for (const index of unmatched) {
+      const box = boxes[index];
+      const score = iou(track.box, box) * 100 - distance(track.box, box);
+
+      if (score > bestScore && distance(track.box, box) <= TRACK_MATCH_DISTANCE) {
+        bestScore = score;
+        bestIndex = index;
+      }
     }
 
-    function logDefect(score) {
-      defectCount++;
-      document.getElementById('defectCount').innerText = defectCount;
-      const snapshotUrl = procCanvas.toDataURL('image/jpeg', 0.8);
+    if (bestIndex >= 0) {
+      const box = boxes[bestIndex];
+      unmatched.delete(bestIndex);
+      track.box = box;
+      track.age++;
+      track.misses = 0;
 
-      const logItem = document.createElement('div');
-      logItem.className = 'log-item';
-      logItem.innerHTML = `
-        <img src="${snapshotUrl}"/>
-        <div class="log-info">
-          <strong>Defect #${defectCount}</strong> - ${new Date().toLocaleTimeString()}<br/>
-          <span style="color:var(--danger)">Shift: ${score.toFixed(1)}%</span>
-        </div>
-      `;
-      logList.insertBefore(logItem, logList.firstChild);
+      const image = cropProduct(frame, box);
+      const sharpness = simpleSharpness(image);
+
+      if (!track.bestImage || sharpness > track.bestSharpness) {
+        track.bestImage = cloneImageData(image);
+        track.bestSharpness = sharpness;
+      }
+
+      const centreBand = box.centreY >= PROCESS_H * 0.40 && box.centreY <= PROCESS_H * 0.60;
+      if (!track.decided && track.age >= MIN_TRACK_AGE && centreBand) {
+        decideTrack(track);
+      }
+    } else {
+      track.misses++;
+      if (!track.decided && track.age >= MIN_TRACK_AGE && track.bestImage) {
+        decideTrack(track);
+      }
     }
+  }
 
-    window.onload = () => {
-      startCamera('environment');
-      populateProfileDropdown();
-    };
-  </script>
+  for (const index of unmatched) {
+    const box = boxes[index];
+    if (recentlyDecided(box)) continue;
+
+    const image = cropProduct(frame, box);
+    const id = nextTrackId++;
+    tracks.set(id, {
+      id,
+      box,
+      age: 1,
+      misses: 0,
+      decided: false,
+      result: null,
+      bestImage: cloneImageData(image),
+      bestSharpness: simpleSharpness(image)
+    });
+  }
+
+  for (const [id, track] of tracks) {
+    if (track.misses > TRACK_MAX_MISSES) tracks.delete(id);
+  }
+
+  $("trackMetric").textContent = String(tracks.size);
+}
+
+function simpleSharpness(imageData) {
+  let total = 0;
+  let count = 0;
+  const { width, height, data } = imageData;
+
+  for (let y = 1; y < height - 1; y += 3) {
+    for (let x = 1; x < width - 1; x += 3) {
+      const i = (y * width + x) * 4;
+      const l = (y * width + x - 1) * 4;
+      const r = (y * width + x + 1) * 4;
+      const g = j => 0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2];
+      const value = g(r) - g(l);
+      total += value * value;
+      count++;
+    }
+  }
+
+  return count ? Math.sqrt(total / count) : 0;
+}
+
+function drawTracks() {
+  const rect = displayedVideoRect();
+  overlayCtx.clearRect(0, 0, stage.clientWidth, stage.clientHeight);
+
+  for (const track of tracks.values()) {
+    const x = rect.x + rect.width * (ROI.x + ROI.width * track.box.x / PROCESS_W);
+    const y = rect.y + rect.height * (ROI.y + ROI.height * track.box.y / PROCESS_H);
+    const w = rect.width * ROI.width * track.box.width / PROCESS_W;
+    const h = rect.height * ROI.height * track.box.height / PROCESS_H;
+
+    const color = track.decided
+      ? (track.result.rejected ? "#ef4444" : "#10b981")
+      : "#3b82f6";
+
+    overlayCtx.strokeStyle = color;
+    overlayCtx.lineWidth = 3;
+    overlayCtx.strokeRect(x, y, w, h);
+    overlayCtx.fillStyle = color;
+    overlayCtx.font = "bold 15px sans-serif";
+    overlayCtx.fillText(
+      `ID ${track.id} — ${track.decided ? (track.result.rejected ? "REJECT" : "PASS") : "TRACKING"}`,
+      x + 4,
+      Math.max(18, y - 6)
+    );
+  }
+}
+
+function loop(timestamp) {
+  if (!running) return;
+
+  if (timestamp - lastLoopAt >= LOOP_INTERVAL_MS) {
+    lastLoopAt = timestamp;
+    processedFrames++;
+
+    try {
+      const frame = captureRoi();
+      const mask = createMask(frame);
+      const boxes = components(mask);
+      updateTracks(boxes, frame);
+      drawTracks();
+
+      if (!boxes.length && !tracks.size) {
+        setStatus("BELT CLEAR — READY", "ready");
+      } else if (boxes.length && ![...tracks.values()].some(t => t.decided)) {
+        setStatus("PRODUCT DETECTED — TRACKING TO INSPECTION BAND", "inspecting");
+      }
+    } catch (error) {
+      setStatus(`PROCESSING ERROR — ${error.message}`, "reject");
+    }
+  }
+
+  const now = performance.now();
+  if (now - lastFpsAt >= 1000) {
+    $("fpsMetric").textContent = String(processedFrames);
+    processedFrames = 0;
+    lastFpsAt = now;
+  }
+
+  animationId = requestAnimationFrame(loop);
+}
+
+function toggleInspection() {
+  if (!calibrated) {
+    alert("Calibrate the system first.");
+    return;
+  }
+
+  running = !running;
+  $("inspectionBtn").textContent = running ? "Stop Inspection" : "Start Inspection";
+  $("inspectionBtn").className = running ? "danger" : "success";
+
+  if (running) {
+    tracks.clear();
+    recentLocks.length = 0;
+    setStatus("INSPECTION STARTED — READY", "ready");
+    animationId = requestAnimationFrame(loop);
+  } else {
+    cancelAnimationFrame(animationId);
+    setStatus("INSPECTION STOPPED", "ready");
+  }
+}
+
+function makeSample(imageData, type) {
+  return {
+    imageData: cloneImageData(imageData),
+    feature: featureVector(imageData),
+    thumbnail: imageDataToUrl(imageData),
+    type
+  };
+}
+
+function addCurrentSample(type) {
+  try {
+    const image = captureRoi();
+    const sample = makeSample(image, type);
+    if (type === "belt") beltSamples.push(sample);
+    if (type === "good") goodSamples.push(sample);
+    if (type === "bad") badSamples.push(sample);
+    renderBanks();
+    calibrated = false;
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function imageFileToSample(file, type) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = PROCESS_W;
+  canvas.height = PROCESS_H;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const scale = Math.min(canvas.width / bitmap.width, canvas.height / bitmap.height);
+  const dw = bitmap.width * scale;
+  const dh = bitmap.height * scale;
+  const dx = (canvas.width - dw) / 2;
+  const dy = (canvas.height - dh) / 2;
+
+  ctx.drawImage(bitmap, dx, dy, dw, dh);
+  bitmap.close();
+
+  return makeSample(ctx.getImageData(0, 0, canvas.width, canvas.height), type);
+}
+
+async function handleUpload(event, type) {
+  const files = Array.from(event.target.files || []);
+  for (const file of files) {
+    const sample = await imageFileToSample(file, type);
+    if (type === "belt") beltSamples.push(sample);
+    if (type === "good") goodSamples.push(sample);
+    if (type === "bad") badSamples.push(sample);
+  }
+  event.target.value = "";
+  renderBanks();
+  calibrated = false;
+}
+
+async function captureBurst(type) {
+  if (!video.videoWidth) {
+    alert("Start the camera first.");
+    return;
+  }
+  if (running) {
+    alert("Stop inspection before capturing a reference burst.");
+    return;
+  }
+
+  const target = type === "belt" ? beltSamples : type === "good" ? goodSamples : badSamples;
+  setStatus(`CAPTURING ${type.toUpperCase()} BURST…`, "inspecting");
+
+  for (let i = 0; i < BURST_FRAMES; i++) {
+    const image = captureRoi();
+    target.push(makeSample(image, type));
+    await new Promise(resolve => setTimeout(resolve, 120));
+  }
+
+  // Keep only latest 24.
+  while (target.length > 24) target.shift();
+
+  renderBanks();
+  calibrated = false;
+  setStatus(`CAPTURED ${BURST_FRAMES} ${type.toUpperCase()} REFERENCES`, "ready");
+}
+
+function renderBank(containerId, samples, type) {
+  const node = $(containerId);
+  node.innerHTML = "";
+  for (const sample of samples) {
+    const img = document.createElement("img");
+    img.src = sample.thumbnail;
+    img.className = `thumb ${type}`;
+    node.appendChild(img);
+  }
+}
+
+function renderBanks() {
+  $("beltCount").textContent = String(beltSamples.length);
+  $("goodCount").textContent = String(goodSamples.length);
+  $("badCount").textContent = String(badSamples.length);
+  renderBank("beltThumbs", beltSamples, "belt");
+  renderBank("goodThumbs", goodSamples, "good");
+  renderBank("badThumbs", badSamples, "bad");
+}
+
+function calibrate() {
+  if (beltSamples.length < 3 || goodSamples.length < 3) {
+    alert("Use at least 3 belt samples and 3 good samples.");
+    return;
+  }
+
+  buildBeltModel();
+  calibrated = true;
+  tracks.clear();
+  $("calibrationMessage").textContent =
+    `Calibration complete: ${beltSamples.length} belt, ${goodSamples.length} good, ${badSamples.length} reject references.`;
+  setStatus("CALIBRATION COMPLETE — READY", "pass");
+}
+
+function saveProfile() {
+  if (!calibrated) {
+    alert("Calibrate before saving.");
+    return;
+  }
+
+  const compact = samples => samples.slice(0, 24).map(sample => ({
+    feature: sample.feature,
+    thumbnail: sample.thumbnail
+  }));
+
+  localStorage.setItem("uli_clean_v3", JSON.stringify({
+    version: 1,
+    ROI,
+    belt: compact(beltSamples),
+    good: compact(goodSamples),
+    bad: compact(badSamples)
+  }));
+
+  alert("Profile saved. For best belt subtraction after reload, recapture belt samples in the current session.");
+}
+
+function loadProfile() {
+  const raw = localStorage.getItem("uli_clean_v3");
+  if (!raw) {
+    alert("No saved profile.");
+    return;
+  }
+
+  const saved = JSON.parse(raw);
+  ROI = saved.ROI || ROI;
+  const restore = (items, type) => (items || []).map(item => ({
+    imageData: null,
+    feature: item.feature,
+    thumbnail: item.thumbnail,
+    type
+  }));
+
+  beltSamples = restore(saved.belt, "belt");
+  goodSamples = restore(saved.good, "good");
+  badSamples = restore(saved.bad, "bad");
+  calibrated = false;
+  beltModel = null;
+  renderBanks();
+  updateRoiOverlay();
+
+  $("calibrationMessage").textContent =
+    "Profile descriptors loaded. Recapture at least 3 belt frames, then calibrate.";
+  setStatus("PROFILE LOADED — BELT RECAPTURE REQUIRED", "inspecting");
+}
+
+function clearProfile() {
+  localStorage.removeItem("uli_clean_v3");
+  alert("Saved profile deleted.");
+}
+
+$("rearCameraBtn").addEventListener("click", () => startCamera("environment"));
+$("frontCameraBtn").addEventListener("click", () => startCamera("user"));
+$("inspectionBtn").addEventListener("click", toggleInspection);
+
+$("fullscreenBtn").addEventListener("click", async () => {
+  if (document.fullscreenElement) {
+    await document.exitFullscreen();
+  } else if (stage.requestFullscreen) {
+    await stage.requestFullscreen();
+  } else if (video.webkitEnterFullscreen) {
+    video.webkitEnterFullscreen();
+  }
+});
+
+$("fullRoiBtn").addEventListener("click", () => setRoi("full"));
+$("verticalRoiBtn").addEventListener("click", () => setRoi("vertical"));
+$("horizontalRoiBtn").addEventListener("click", () => setRoi("horizontal"));
+
+$("snapBeltBtn").addEventListener("click", () => addCurrentSample("belt"));
+$("snapGoodBtn").addEventListener("click", () => addCurrentSample("good"));
+$("snapBadBtn").addEventListener("click", () => addCurrentSample("bad"));
+
+$("uploadBelt").addEventListener("change", event => handleUpload(event, "belt"));
+$("uploadGood").addEventListener("change", event => handleUpload(event, "good"));
+$("uploadBad").addEventListener("change", event => handleUpload(event, "bad"));
+
+$("clearBeltBtn").addEventListener("click", () => { beltSamples = []; renderBanks(); calibrated = false; });
+$("clearGoodBtn").addEventListener("click", () => { goodSamples = []; renderBanks(); calibrated = false; });
+$("clearBadBtn").addEventListener("click", () => { badSamples = []; renderBanks(); calibrated = false; });
+
+$("burstBeltBtn").addEventListener("click", () => captureBurst("belt"));
+$("burstGoodBtn").addEventListener("click", () => captureBurst("good"));
+$("burstBadBtn").addEventListener("click", () => captureBurst("bad"));
+
+$("calibrateBtn").addEventListener("click", calibrate);
+$("saveProfileBtn").addEventListener("click", saveProfile);
+$("loadProfileBtn").addEventListener("click", loadProfile);
+$("clearProfileBtn").addEventListener("click", clearProfile);
+
+$("resetRejectBtn").addEventListener("click", () => {
+  rejectCount = 0;
+  updateTopUI();
+});
+
+$("alarmBtn").addEventListener("click", () => {
+  alarmEnabled = !alarmEnabled;
+  updateTopUI();
+});
+
+["goodThreshold", "pixelThreshold", "minimumArea"].forEach(id => {
+  $(id).addEventListener("input", updateSliderLabels);
+});
+
+video.addEventListener("loadedmetadata", resizeStage);
+window.addEventListener("resize", resizeStage);
+window.addEventListener("orientationchange", () => setTimeout(resizeStage, 250));
+
+roiCanvas.width = PROCESS_W;
+roiCanvas.height = PROCESS_H;
+maskCanvas.width = PROCESS_W;
+maskCanvas.height = PROCESS_H;
+productCanvas.width = 240;
+productCanvas.height = 180;
+
+updateSliderLabels();
+updateTopUI();
+renderBanks();
+setStatus("READY — START CAMERA AND CALIBRATE", "ready");
+</script>
 </body>
 </html>
