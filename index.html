@@ -6,7 +6,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
-  <title>Universal Line Inspector V2.3 — Immediate Inspection</title>
+  <title>Universal Line Inspector V2.4 — Audit Repair</title>
 
   <style>
     :root {
@@ -795,6 +795,10 @@
     const BORDERLINE_MARGIN = 3.5;
     const MIN_SHARPNESS_SCORE = 3.5;
     const MIN_CAPTURED_VIDEO_FRAMES = 3;
+    const DECISION_LOCK_MS = 1100;
+    const DECISION_LOCK_DISTANCE = 70;
+    const OCR_TIMEOUT_MS = 900;
+    const MAX_ACTIVITY_LOGS = 30;
 
 
     const video = document.getElementById("webcam");
@@ -879,6 +883,7 @@
     let videoCaptureTimer = null;
     let videoCaptureMode = null;
     let videoCaptureCancelled = false;
+    const recentDecisionLocks = [];
 
     let tracks = new Map();
     let nextTrackId = 1;
@@ -1246,6 +1251,7 @@
 
       videoCaptureMode = mode;
       videoCaptureCancelled = false;
+      fastTrackStatus.textContent = "RECORDING";
       stopVideoRecordBtn.disabled = false;
       recordBeltVideoBtn.disabled = true;
       recordGoodVideoBtn.disabled = true;
@@ -1290,6 +1296,7 @@
 
       videoCaptureTimer = null;
       videoCaptureMode = null;
+      fastTrackStatus.textContent = "READY";
       stopVideoRecordBtn.disabled = true;
       recordBeltVideoBtn.disabled = false;
       recordGoodVideoBtn.disabled = false;
@@ -1984,6 +1991,63 @@
         .slice(0, 6);
     }
 
+
+    function pruneDecisionLocks(now = performance.now()) {
+      while (
+        recentDecisionLocks.length &&
+        now - recentDecisionLocks[0].time > DECISION_LOCK_MS
+      ) {
+        recentDecisionLocks.shift();
+      }
+    }
+
+    function isRecentlyDecidedCandidate(candidate) {
+      const now = performance.now();
+      pruneDecisionLocks(now);
+
+      return recentDecisionLocks.some(lock => {
+        const distance = Math.hypot(
+          lock.centreX - candidate.centreX,
+          lock.centreY - candidate.centreY
+        );
+        const sizeDifference =
+          Math.abs(lock.width - candidate.width) +
+          Math.abs(lock.height - candidate.height);
+
+        return (
+          distance <= DECISION_LOCK_DISTANCE &&
+          sizeDifference <= 70
+        );
+      });
+    }
+
+    function rememberDecision(track) {
+      recentDecisionLocks.push({
+        time: performance.now(),
+        centreX: track.centreX,
+        centreY: track.centreY,
+        width: track.bounds?.width || 0,
+        height: track.bounds?.height || 0
+      });
+      pruneDecisionLocks();
+    }
+
+    function capActivityLog() {
+      const logList = document.getElementById("logList");
+      while (logList.children.length > MAX_ACTIVITY_LOGS) {
+        logList.lastElementChild?.remove();
+      }
+    }
+
+    function withTimeout(promise, timeoutMs, fallbackValue) {
+      return Promise.race([
+        promise,
+        new Promise(resolve => {
+          setTimeout(() => resolve(fallbackValue), timeoutMs);
+        })
+      ]);
+    }
+
     function distanceBetweenTrackAndCandidate(track, candidate) {
       return Math.hypot(
         track.centreX - candidate.centreX,
@@ -2070,6 +2134,11 @@
         if (assignedCandidates.has(i)) continue;
 
         const candidate = candidates[i];
+
+        if (isRecentlyDecidedCandidate(candidate)) {
+          continue;
+        }
+
         const id = nextTrackId++;
 
         tracks.set(id, {
@@ -2095,6 +2164,17 @@
             capturedAt: performance.now()
           }],
           lastSeenAt: performance.now()
+        });
+
+        const createdTrack = tracks.get(id);
+        queueMicrotask(() => {
+          if (
+            createdTrack &&
+            !createdTrack.inspected &&
+            !createdTrack.processing
+          ) {
+            void logRejectForTrack(createdTrack);
+          }
         });
       }
 
@@ -2718,9 +2798,17 @@
         // Detailed artwork/OCR is reserved for borderline products or
         // products that have configured mandatory zones.
         if (allowDetailedChecks) {
-          const zoneResult = await evaluateInspectionZones(
-            objectImageData,
-            goodMatch.index
+          const zoneResult = await withTimeout(
+            evaluateInspectionZones(
+              objectImageData,
+              goodMatch.index
+            ),
+            OCR_TIMEOUT_MS,
+            {
+              failed: true,
+              reasons: ["Detailed text/artwork check timed out"],
+              details: []
+            }
           );
 
           if (zoneResult.failed) {
@@ -2776,6 +2864,10 @@
       const decisionStartedAt = performance.now();
 
       try {
+        if (!track.imageData) {
+          throw new Error("Track has no captured product image");
+        }
+
         const burst =
           Array.isArray(track.burstFrames) && track.burstFrames.length
             ? [...track.burstFrames]
@@ -2819,6 +2911,7 @@
         }
 
         track.inspected = true;
+        rememberDecision(track);
 
         const elapsed = performance.now() - decisionStartedAt;
         inspectionLatency.textContent = `${Math.round(elapsed)} ms`;
@@ -2845,6 +2938,7 @@
 
           const logList = document.getElementById("logList");
           logList.prepend(passItem);
+          capActivityLog();
 
           const passItems = logList.querySelectorAll('[data-result="pass"]');
           if (passItems.length > 10) {
@@ -2876,6 +2970,7 @@
         `;
 
         document.getElementById("logList").prepend(item);
+        capActivityLog();
       } catch (error) {
         console.error("Track inspection error:", error);
         track.result = {
@@ -2885,6 +2980,8 @@
           reason: `Track processing error — fail-safe reject: ${error.message}`
         };
         track.inspected = true;
+        rememberDecision(track);
+        fastTrackStatus.textContent = "ERROR REJECT";
         incrementRejectCount();
         triggerAlarm();
       } finally {
@@ -2893,21 +2990,9 @@
     }
 
     function inspectReadyTracks(trackList) {
-      const now = performance.now();
-
       for (const track of trackList) {
         if (track.inspected || track.processing) continue;
-
-        const createdAt = Number.isFinite(track.createdAt)
-          ? track.createdAt
-          : now;
-
-        const ageMs = now - createdAt;
-        const hasFrame =
-          Array.isArray(track.burstFrames) &&
-          track.burstFrames.length >= 1;
-
-        if (!hasFrame && ageMs < MAX_INSPECTION_WAIT_MS) continue;
+        if (!track.imageData) continue;
         if (!track.resemblesProduct && !track.solidUnknownObject) continue;
 
         void logRejectForTrack(track);
@@ -2915,53 +3000,55 @@
     }
 
     function updateLiveStatus(trackList, foregroundCoverage) {
-      const visible = trackList.filter((track) => track.missedFrames === 0);
-      const rejects = visible.filter(
-        (track) => track.inspected && track.result?.rejected
+      const visible = trackList.filter(track => track.missedFrames === 0);
+      const processing = visible.filter(track => track.processing);
+      const rejected = visible.filter(
+        track => track.inspected && track.result?.rejected
       );
-      const passes = visible.filter(
-        (track) => track.inspected && !track.result?.rejected
+      const passed = visible.filter(
+        track => track.inspected && track.result && !track.result.rejected
       );
-      const waiting = visible.filter(
-        (track) => !track.inspected && !track.processing
-      );
-      const processing = visible.filter((track) => track.processing);
 
-      if (processing.length > 0) {
+      if (processing.length) {
         setStatus(
           `INSPECTING PRODUCT ID ${processing[0].id}…`,
           "status-entering"
         );
-      } else if (visible.length === 0) {
+        return;
+      }
+
+      if (rejected.length) {
+        setStatus(
+          `REJECT — ${rejected[0].result.reason}`,
+          "status-fail"
+        );
+        return;
+      }
+
+      if (passed.length) {
+        setStatus(
+          `PASS — ${passed[0].result.reason}`,
+          "status-pass"
+        );
+        return;
+      }
+
+      if (!visible.length) {
         if (foregroundCoverage > Number(presenceThreshold.value) / 100) {
           setStatus(
-            "BELT/BACKGROUND MOVEMENT IGNORED — WAITING FOR A REAL PRODUCT",
+            "BACKGROUND MOVEMENT IGNORED — READY FOR PRODUCT",
             "status-empty"
           );
         } else {
-          setStatus("BELT CLEAR OR STOPPED — READY FOR PRODUCT", "status-empty");
+          setStatus("BELT CLEAR OR STOPPED — READY", "status-empty");
         }
-      } else if (rejects.length > 0) {
-        setStatus(
-          `REJECT RECORDED — ${visible.length} PRODUCT(S) TRACKED; WAITING FOR EACH TO EXIT`,
-          "status-fail"
-        );
-      } else if (waiting.length > 0) {
-        setStatus(
-          `TRACKING ${visible.length} PRODUCT(S) — ${waiting.length} WAITING FOR INSPECTION`,
-          "status-entering"
-        );
-      } else if (passes.length > 0) {
-        setStatus(
-          `PASS — ${visible.length} PRODUCT(S) TRACKED; READY TO TRACK NEXT GAP`,
-          "status-pass"
-        );
-      } else {
-        setStatus(
-          `SEARCHING (${(foregroundCoverage * 100).toFixed(1)}% FOREGROUND)`,
-          "status-entering"
-        );
+        return;
       }
+
+      setStatus(
+        "PRODUCT DETECTED — DECISION STARTING",
+        "status-entering"
+      );
     }
 
     function scanLoop(timestamp = 0) {
@@ -2997,7 +3084,6 @@
           // lighting change, obstruction or belt/background disturbance—not a
           // single product. Clear provisional tracks and never alert on it.
           if (wholeSceneChanged) {
-            tracks.clear();
             clearDetectionOverlay();
             setStatus(
               "BACKGROUND/CAMERA CHANGE DETECTED — ALERTS PAUSED UNTIL SCENE STABILISES",
@@ -3056,16 +3142,9 @@
     }
 
     function serialiseSamples(samples) {
-      return samples.map((sample) => ({
+      return samples.slice(0, 24).map(sample => ({
         thumbnail: sample.thumbnail,
-        feature: sample.feature,
-        imageData: sample.imageData
-          ? {
-              width: sample.imageData.width,
-              height: sample.imageData.height,
-              data: Array.from(sample.imageData.data)
-            }
-          : null
+        feature: sample.feature
       }));
     }
 
@@ -3077,7 +3156,7 @@
       if (!name?.trim()) return;
 
       const saved = {
-        version: 8,
+        version: 9,
         name: name.trim(),
         savedAt: new Date().toISOString(),
         roi: { ...ROI },
@@ -3103,14 +3182,8 @@
     }
 
     function restoreSamples(savedSamples) {
-      return (savedSamples || []).map((sample) => ({
-        imageData: sample.imageData
-          ? new ImageData(
-              new Uint8ClampedArray(sample.imageData.data),
-              sample.imageData.width,
-              sample.imageData.height
-            )
-          : null,
+      return (savedSamples || []).map(sample => ({
+        imageData: null,
         feature: sample.feature,
         thumbnail: sample.thumbnail
       }));
@@ -3127,7 +3200,7 @@
       try {
         const saved = JSON.parse(raw);
 
-        if (saved.version !== 8) {
+        if (saved.version !== 9) {
           alert(
             "This saved calibration uses the older inspection engine. " +
             "Please capture the samples again and recalibrate for smart " +
