@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>High-Speed Dual-Bank Line Inspector</title>
+  <title>Smart Dual-Bank Line Inspector</title>
   <style>
     :root {
       --bg-color: #0f172a;
@@ -32,7 +32,8 @@
     .card { background: var(--card-bg); border-radius: 12px; padding: 12px; border: 1px solid #334155; }
     .card h2 { font-size: 0.95rem; margin-bottom: 8px; color: var(--accent); }
 
-    video, canvas, img { width: 100%; height: auto; border-radius: 8px; background: #000; object-fit: contain; max-height: 200px; }
+    .video-container { position: relative; width: 100%; height: 200px; background: #000; border-radius: 8px; overflow: hidden; }
+    video { width: 100%; height: 100%; object-fit: contain; }
     
     .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     button { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
@@ -61,8 +62,8 @@
 
   <header>
     <div>
-      <h1>Dual-Bank Line Inspector</h1>
-      <p style="font-size: 0.7rem; color: var(--text-muted);">Auto-good sampling & defect profile matching</p>
+      <h1>Smart Dual-Bank Inspector</h1>
+      <p style="font-size: 0.7rem; color: var(--text-muted);">Precision detection, count logging & hardware zoom</p>
     </div>
     
     <div class="header-actions">
@@ -79,12 +80,20 @@
     <!-- Camera View & Controls -->
     <div class="card">
       <h2>Live Line Camera</h2>
-      <video id="webcam" autoplay playsinline muted></video>
+      <div class="video-container">
+        <video id="webcam" autoplay playsinline muted></video>
+      </div>
       
       <div class="controls">
         <button onclick="startCamera('environment')">Rear Cam</button>
         <button onclick="startCamera('user')">Front Cam</button>
         <button id="toggleScanBtn" onclick="toggleScanning()" style="background: var(--success);">Start Line Inspection</button>
+      </div>
+
+      <div class="slider-group">
+        <label>Camera Zoom:</label>
+        <input type="range" id="zoomRange" min="1" max="5" step="0.1" value="1" oninput="applyZoom(this.value)">
+        <span id="zoomVal">1.0x</span>
       </div>
 
       <div class="slider-group">
@@ -106,6 +115,13 @@
     <div class="card">
       <h2>Calibration & Banks</h2>
       
+      <!-- Belt Calibration -->
+      <div style="margin-bottom: 8px;">
+        <button onclick="captureBeltFromCamera()" style="background: #475569; width: 100%;">1. Set Empty Belt Reference</button>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid #334155; margin: 8px 0;">
+
       <!-- Good Target Bank -->
       <div style="margin-bottom: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -134,13 +150,6 @@
           <button onclick="clearBadSamples()" style="background: #475569; font-size: 0.75rem;">Clear Rejects</button>
         </div>
       </div>
-
-      <hr style="border: 0; border-top: 1px solid #334155; margin: 8px 0;">
-
-      <!-- Belt Calibration -->
-      <div style="display: flex; align-items: center; justify-content: space-between;">
-        <button onclick="captureBeltFromCamera()" style="background: #475569; width: 100%;">Set Empty Belt Reference</button>
-      </div>
     </div>
   </div>
 
@@ -165,6 +174,8 @@
     const sensValDisplay = document.getElementById('sensVal');
     const presenceInput = document.getElementById('presenceSens');
     const presenceValDisplay = document.getElementById('presenceVal');
+    const zoomRange = document.getElementById('zoomRange');
+    const zoomValDisplay = document.getElementById('zoomVal');
     
     const liveStatus = document.getElementById('liveStatus');
     const logList = document.getElementById('logList');
@@ -175,6 +186,7 @@
     const badStrip = document.getElementById('badStrip');
     const badCountDisplay = document.getElementById('badCount');
 
+    let videoTrack = null;
     let isScanning = false;
     let isAutoGoodCapturing = false;
     let autoGoodTargetCount = 5;
@@ -185,6 +197,7 @@
     let beltImageData = null;
     
     let isProductInZone = false;
+    let hasLoggedCurrentDefect = false;
     let previousPresenceScore = 0;
     let isMuted = false;
     let animationFrameId = null;
@@ -230,8 +243,32 @@
           audio: false
         });
         video.srcObject = stream;
+        videoTrack = stream.getVideoTracks()[0];
+
+        // Setup Zoom Capabilities
+        const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+        if (capabilities.zoom) {
+          zoomRange.min = capabilities.zoom.min;
+          zoomRange.max = capabilities.zoom.max;
+          zoomRange.step = capabilities.zoom.step;
+          zoomRange.value = videoTrack.getSettings().zoom || 1;
+          zoomValDisplay.innerText = `${parseFloat(zoomRange.value).toFixed(1)}x`;
+        }
       } catch (err) {
         alert("Camera error: " + err.message);
+      }
+    }
+
+    async function applyZoom(val) {
+      zoomValDisplay.innerText = `${parseFloat(val).toFixed(1)}x`;
+      if (videoTrack && videoTrack.getCapabilities && videoTrack.getCapabilities().zoom) {
+        try {
+          await videoTrack.applyConstraints({ advanced: [{ zoom: parseFloat(val) }] });
+        } catch (e) { console.log(e); }
+      } else {
+        // Fallback software zoom preview
+        video.style.transform = `scale(${val})`;
+        video.style.transformOrigin = "center center";
       }
     }
 
@@ -255,12 +292,10 @@
 
     function startAutoGoodCapture() {
       if (!beltImageData) {
-        alert("Set Empty Belt Reference first before using Auto-Learn!");
+        alert("Please tap '1. Set Empty Belt Reference' first!");
         return;
       }
-      goodSamples = [];
-      goodStrip.innerHTML = '';
-      goodCountDisplay.innerText = '0';
+      clearGoodSamples();
       isAutoGoodCapturing = true;
       liveStatus.className = "status-badge status-auto";
       liveStatus.innerText = `AUTO-LEARNING GOOD PACKS (0/${autoGoodTargetCount})`;
@@ -303,7 +338,7 @@
     function captureBeltFromCamera() {
       beltCtx.drawImage(video, 0, 0, beltCanvas.width, beltCanvas.height);
       beltImageData = beltCtx.getImageData(0, 0, beltCanvas.width, beltCanvas.height);
-      alert("Empty Belt Baseline Saved.");
+      alert("Empty Belt Reference Saved!");
     }
 
     function toggleScanning() {
@@ -341,45 +376,53 @@
         const frameDelta = Math.abs(objectPresenceScore - previousPresenceScore);
         previousPresenceScore = objectPresenceScore;
 
+        // EMPTY BELT DETECTED
         if (objectPresenceScore < objectTrigger) {
           if (!isAutoGoodCapturing) {
             liveStatus.className = "status-badge status-empty";
             liveStatus.innerText = "BELT CLEAR";
           }
           isProductInZone = false;
+          hasLoggedCurrentDefect = false; // Reset trigger lock when zone clears
         } 
+        // PRODUCT IN INSPECTION ZONE
         else {
-          if (frameDelta > 12.0) {
+          // Re-arm state machine if a distinct gap/seam transition passes
+          if (frameDelta > 14.0) {
             isProductInZone = false;
+            hasLoggedCurrentDefect = false;
           }
 
           // 1. AUTO-LEARN MODE LOGIC
           if (isAutoGoodCapturing) {
             if (!isProductInZone) {
-              captureGoodSample();
-              isProductInZone = true;
-              liveStatus.innerText = `AUTO-LEARNING GOOD PACKS (${goodSamples.length}/${autoGoodTargetCount})`;
+              // Ensure we don't save empty belt as good sample
+              if (objectPresenceScore >= objectTrigger + 2.0) {
+                captureGoodSample();
+                isProductInZone = true;
+                liveStatus.innerText = `AUTO-LEARNING GOOD PACKS (${goodSamples.length}/${autoGoodTargetCount})`;
 
-              if (goodSamples.length >= autoGoodTargetCount) {
-                isAutoGoodCapturing = false;
-                liveStatus.className = "status-badge status-pass";
-                liveStatus.innerText = "AUTO-LEARN COMPLETE! READY TO INSPECT";
-                const btn = document.getElementById('toggleScanBtn');
-                btn.innerText = "Stop Inspection";
-                btn.style.background = "var(--danger)";
+                if (goodSamples.length >= autoGoodTargetCount) {
+                  isAutoGoodCapturing = false;
+                  liveStatus.className = "status-badge status-pass";
+                  liveStatus.innerText = "AUTO-LEARN COMPLETE! READY TO INSPECT";
+                  const btn = document.getElementById('toggleScanBtn');
+                  btn.innerText = "Stop Inspection";
+                  btn.style.background = "var(--danger)";
+                }
               }
             }
           } 
-          // 2. NORMAL DUAL-BANK INSPECTION LOGIC
+          // 2. NORMAL INSPECTION LOGIC
           else {
-            // Find closest match in GOOD bank
+            // Find best match in GOOD bank
             let minGoodDiff = 999;
             for (let i = 0; i < goodSamples.length; i++) {
               const diff = calculatePixelDiff(goodSamples[i].data, currentData.data);
               if (diff < minGoodDiff) minGoodDiff = diff;
             }
 
-            // Find closest match in BAD/REJECT bank
+            // Find best match in BAD bank
             let minBadDiff = 999;
             for (let i = 0; i < badSamples.length; i++) {
               const diff = calculatePixelDiff(badSamples[i].data, currentData.data);
@@ -388,7 +431,6 @@
 
             const defectThreshold = parseFloat(sensitivityInput.value);
             
-            // Defect Flag: Deviation from good > threshold OR matches a bad sample closer than a good sample
             const isRejectMatch = (badSamples.length > 0) && (minBadDiff < minGoodDiff);
             const isGoodDeviation = minGoodDiff > defectThreshold;
 
@@ -397,9 +439,10 @@
               const reason = isRejectMatch ? "KNOWN DEFECT MATCH" : `${minGoodDiff.toFixed(1)}% Diff`;
               liveStatus.innerText = `DEFECT DETECTED (${reason})`;
 
-              if (!isProductInZone) {
+              if (!hasLoggedCurrentDefect) {
                 triggerHighDecibelAlarm();
                 logDefect(minGoodDiff, isRejectMatch);
+                hasLoggedCurrentDefect = true;
                 isProductInZone = true;
               }
             } else {
