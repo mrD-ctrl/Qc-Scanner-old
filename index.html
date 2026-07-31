@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Universal Line Inspector — Configurable Vision V3.2</title>
+  <title>Universal Line Inspector — Normalized Model V4</title>
   <style>
     :root {
       color-scheme: dark;
@@ -272,7 +272,7 @@
 
     .metrics {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
+      grid-template-columns: repeat(auto-fit, minmax(130px,1fr));
       gap: 10px;
       margin-top: 12px;
     }
@@ -335,7 +335,7 @@
   <header>
     <div>
       <h1>Universal Line Inspector</h1>
-      <div class="helper">Configurable Vision V3.2</div>
+      <div class="helper">Normalized Model V4</div>
     </div>
 
     <div class="top-actions">
@@ -408,6 +408,8 @@
       <div class="metric"><strong id="trackMetric">0</strong><span>Active tracks</span></div>
       <div class="metric"><strong id="latencyMetric">—</strong><span>Last decision</span></div>
       <div class="metric"><strong id="decisionMetric">—</strong><span>Last result</span></div>
+      <div class="metric"><strong id="modelSpreadMetric">—</strong><span>Model spread / limit</span></div>
+      <div class="metric"><strong id="qualityMetric">—</strong><span>Frame quality</span></div>
     </div>
 
     <div class="debug-grid">
@@ -514,6 +516,25 @@
           <option value="2">Medium</option>
         </select>
       </label>
+
+      <label>Model acceptance multiplier
+        <input id="cfgModelMultiplier" type="number" min="1" max="5" step="0.1" value="2.2">
+      </label>
+
+      <label>Minimum model threshold
+        <input id="cfgModelFloor" type="number" min="2" max="35" step="0.5" value="8">
+      </label>
+
+      <label>Maximum model threshold
+        <input id="cfgModelCeiling" type="number" min="8" max="60" step="0.5" value="28">
+      </label>
+
+      <label>Rotation normalization
+        <select id="cfgRotationNormalize">
+          <option value="1" selected>On</option>
+          <option value="0">Off</option>
+        </select>
+      </label>
     </div>
 
     <div class="controls">
@@ -570,7 +591,7 @@
     </div>
 
     <p id="calibrationMessage" class="helper">
-      Capture at least 3 empty-belt frames and 3 good-product frames. Set the real conveyor direction before calibration. Back-to-back products with a visible gap are tracked independently.
+      Capture belt samples first. GOOD and REJECT samples are automatically isolated, rotated, centred and scaled before the learned model is built.
     </p>
   </section>
 
@@ -605,7 +626,11 @@ const DEFAULT_CONFIG = Object.freeze({
   passVotes: 2,
   upsideDownMargin: 2,
   badVetoMargin: 2,
-  morphology: 1
+  morphology: 1,
+  modelMultiplier: 2.2,
+  modelFloor: 8,
+  modelCeiling: 28,
+  rotationNormalize: 1
 });
 
 let CONFIG = { ...DEFAULT_CONFIG };
@@ -647,6 +672,8 @@ let beltSamples = [];
 let goodSamples = [];
 let badSamples = [];
 let beltModel = null;
+let goodModel = null;
+let badModel = null;
 
 let nextTrackId = 1;
 const tracks = new Map();
@@ -830,6 +857,8 @@ function setRoi(type) {
 
   calibrated = false;
   beltModel = null;
+  goodModel = null;
+  badModel = null;
   tracks.clear();
   updateRoiOverlay();
   setStatus("ROI CHANGED — RECALIBRATE", "inspecting");
@@ -865,9 +894,12 @@ function featureVector(imageData) {
   const hashW = 16;
   const hash = new Float32Array(hashW * hashW);
   const hashCounts = new Uint16Array(hashW * hashW);
+  const horizontalProjection = new Float32Array(18);
+  const verticalProjection = new Float32Array(24);
 
   const { width, height, data } = imageData;
   let total = 0;
+  let foreground = 0;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -876,6 +908,13 @@ function featureVector(imageData) {
       const g = data[i + 1];
       const b = data[i + 2];
       const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      const isForeground = r + g + b > 20;
+
+      if (isForeground) {
+        foreground++;
+        horizontalProjection[Math.min(17, Math.floor(y / height * 18))]++;
+        verticalProjection[Math.min(23, Math.floor(x / width * 24))]++;
+      }
 
       hist[Math.min(7, r >> 5)]++;
       hist[8 + Math.min(7, g >> 5)]++;
@@ -902,6 +941,7 @@ function featureVector(imageData) {
   }
 
   for (let i = 0; i < hist.length; i++) hist[i] /= Math.max(1, total);
+
   for (let i = 0; i < counts.length; i++) {
     const c = Math.max(1, counts[i]);
     const o = i * 4;
@@ -910,16 +950,27 @@ function featureVector(imageData) {
     spatial[o + 2] /= c;
     spatial[o + 3] /= c;
   }
-  for (let i = 0; i < hash.length; i++) hash[i] /= Math.max(1, hashCounts[i]);
 
-  const mean = hash.reduce((a, b) => a + b, 0) / hash.length;
+  for (let i = 0; i < hash.length; i++) {
+    hash[i] /= Math.max(1, hashCounts[i]);
+  }
+
+  const mean = hash.reduce((sum, value) => sum + value, 0) / hash.length;
   const bits = Array.from(hash, value => value >= mean ? 1 : 0);
 
+  const normalizeProjection = projection => {
+    const max = Math.max(1, ...projection);
+    return Array.from(projection, value => value / max);
+  };
+
   return {
-    version: 1,
+    version: 2,
     hist: Array.from(hist),
     spatial: Array.from(spatial),
-    bits
+    bits,
+    horizontalProjection: normalizeProjection(horizontalProjection),
+    verticalProjection: normalizeProjection(verticalProjection),
+    occupancy: foreground / Math.max(1, total)
   };
 }
 
@@ -931,7 +982,7 @@ function averageAbs(a, b) {
 }
 
 function featureDifference(a, b) {
-  if (!a || !b || a.version !== 1 || b.version !== 1) return 100;
+  if (!a || !b || a.version !== 2 || b.version !== 2) return 100;
 
   let hist = 0;
   for (let i = 0; i < a.hist.length; i++) {
@@ -946,8 +997,21 @@ function featureDifference(a, b) {
   const histScore = Math.min(100, hist / 2 * 100);
   const spatialScore = Math.min(100, averageAbs(a.spatial, b.spatial) * 100);
   const hashScore = hashDiff / a.bits.length * 100;
+  const horizontalScore =
+    Math.min(100, averageAbs(a.horizontalProjection, b.horizontalProjection) * 100);
+  const verticalScore =
+    Math.min(100, averageAbs(a.verticalProjection, b.verticalProjection) * 100);
+  const occupancyScore =
+    Math.min(100, Math.abs(a.occupancy - b.occupancy) * 160);
 
-  return histScore * 0.2 + spatialScore * 0.45 + hashScore * 0.35;
+  return (
+    histScore * 0.12 +
+    spatialScore * 0.30 +
+    hashScore * 0.24 +
+    horizontalScore * 0.12 +
+    verticalScore * 0.12 +
+    occupancyScore * 0.10
+  );
 }
 
 function nearest(feature, samples) {
@@ -964,6 +1028,59 @@ function nearest(feature, samples) {
 
   return { difference, index };
 }
+
+function median(values) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function buildReferenceModel(samples) {
+  const features = samples
+    .map(sample => sample.feature)
+    .filter(feature => feature?.version === 2);
+
+  if (!features.length) return null;
+
+  const totals = features.map((feature, index) =>
+    features.reduce(
+      (sum, other, otherIndex) =>
+        sum + (index === otherIndex ? 0 : featureDifference(feature, other)),
+      0
+    )
+  );
+
+  const medoidIndex = totals.indexOf(Math.min(...totals));
+  const medoid = features[medoidIndex];
+  const distances = features.map(feature => featureDifference(feature, medoid));
+  const spread = median(distances);
+  const deviations = distances.map(value => Math.abs(value - spread));
+  const mad = median(deviations);
+
+  const threshold = Math.min(
+    CONFIG.modelCeiling,
+    Math.max(
+      CONFIG.modelFloor,
+      spread + Math.max(1.5, mad) * CONFIG.modelMultiplier
+    )
+  );
+
+  return {
+    medoid,
+    threshold,
+    spread,
+    mad,
+    sampleCount: features.length
+  };
+}
+
+function modelDifference(feature, model) {
+  return model ? featureDifference(feature, model.medoid) : Infinity;
+}
+
 
 function rotate180(imageData) {
   const output = new ImageData(imageData.width, imageData.height);
@@ -1072,12 +1189,18 @@ function components(mask) {
       visited[start] = 1;
       let count = 0;
       let minX = x, maxX = x, minY = y, maxY = y;
+      let sumX = 0, sumY = 0, sumXX = 0, sumYY = 0, sumXY = 0;
 
       while (stack.length) {
         const p = stack.pop();
         const px = p % PROCESS_W;
         const py = Math.floor(p / PROCESS_W);
         count++;
+        sumX += px;
+        sumY += py;
+        sumXX += px * px;
+        sumYY += py * py;
+        sumXY += px * py;
 
         minX = Math.min(minX, px);
         maxX = Math.max(maxX, px);
@@ -1110,10 +1233,18 @@ function components(mask) {
         height >= PROCESS_H * 0.12 &&
         boxArea <= PROCESS_W * PROCESS_H * 0.85
       ) {
+        const centroidX = sumX / count;
+        const centroidY = sumY / count;
+        const covXX = sumXX / count - centroidX * centroidX;
+        const covYY = sumYY / count - centroidY * centroidY;
+        const covXY = sumXY / count - centroidX * centroidY;
+        const angle = 0.5 * Math.atan2(2 * covXY, covXX - covYY);
+
         result.push({
           x: minX, y: minY, width, height, count, fill,
-          centreX: minX + width / 2,
-          centreY: minY + height / 2
+          centreX: centroidX,
+          centreY: centroidY,
+          angle
         });
       }
     }
@@ -1122,37 +1253,121 @@ function components(mask) {
   return result.sort((a, b) => b.count - a.count).slice(0, 6);
 }
 
-function cropProduct(imageData, box) {
-  const padX = Math.round(box.width * 0.06);
-  const padY = Math.round(box.height * 0.06);
-  const sx = Math.max(0, box.x - padX);
-  const sy = Math.max(0, box.y - padY);
-  const sw = Math.min(PROCESS_W - sx, box.width + padX * 2);
-  const sh = Math.min(PROCESS_H - sy, box.height + padY * 2);
+function cropProduct(imageData, box, mask = null) {
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = PROCESS_W;
+  sourceCanvas.height = PROCESS_H;
+  const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+  sourceCtx.putImageData(imageData, 0, 0);
 
-  const src = document.createElement("canvas");
-  src.width = PROCESS_W;
-  src.height = PROCESS_H;
-  src.getContext("2d").putImageData(imageData, 0, 0);
+  const objectCanvas = document.createElement("canvas");
+  objectCanvas.width = PROCESS_W;
+  objectCanvas.height = PROCESS_H;
+  const objectCtx = objectCanvas.getContext("2d", { willReadFrequently: true });
 
-  const out = document.createElement("canvas");
-  out.width = 240;
-  out.height = 180;
-  const ctx = out.getContext("2d", { willReadFrequently: true });
+  if (mask) {
+    const isolated = objectCtx.createImageData(PROCESS_W, PROCESS_H);
 
-  const scale = Math.min(out.width / sw, out.height / sh);
-  const dw = sw * scale;
-  const dh = sh * scale;
-  const dx = (out.width - dw) / 2;
-  const dy = (out.height - dh) / 2;
+    for (let p = 0; p < mask.length; p++) {
+      if (!mask[p]) continue;
+      const i = p * 4;
+      isolated.data[i] = imageData.data[i];
+      isolated.data[i + 1] = imageData.data[i + 1];
+      isolated.data[i + 2] = imageData.data[i + 2];
+      isolated.data[i + 3] = 255;
+    }
 
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, out.width, out.height);
-  ctx.drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh);
+    objectCtx.putImageData(isolated, 0, 0);
+  } else {
+    objectCtx.drawImage(sourceCanvas, 0, 0);
+  }
 
-  const result = ctx.getImageData(0, 0, out.width, out.height);
-  productCanvas.width = out.width;
-  productCanvas.height = out.height;
+  const padX = Math.round(box.width * 0.10);
+  const padY = Math.round(box.height * 0.10);
+  const cropX = Math.max(0, box.x - padX);
+  const cropY = Math.max(0, box.y - padY);
+  const cropW = Math.min(PROCESS_W - cropX, box.width + padX * 2);
+  const cropH = Math.min(PROCESS_H - cropY, box.height + padY * 2);
+
+  const temporary = document.createElement("canvas");
+  temporary.width = Math.max(1, cropW);
+  temporary.height = Math.max(1, cropH);
+  const temporaryCtx = temporary.getContext("2d", { willReadFrequently: true });
+
+  temporaryCtx.translate(temporary.width / 2, temporary.height / 2);
+  temporaryCtx.rotate(CONFIG.rotationNormalize ? -(box.angle || 0) : 0);
+  temporaryCtx.drawImage(
+    objectCanvas,
+    cropX, cropY, cropW, cropH,
+    -cropW / 2, -cropH / 2, cropW, cropH
+  );
+
+  const rotatedData = temporaryCtx.getImageData(
+    0, 0, temporary.width, temporary.height
+  );
+
+  let minX = temporary.width;
+  let minY = temporary.height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < temporary.height; y++) {
+    for (let x = 0; x < temporary.width; x++) {
+      const i = (y * temporary.width + x) * 4;
+      const brightness =
+        rotatedData.data[i] +
+        rotatedData.data[i + 1] +
+        rotatedData.data[i + 2];
+
+      if (rotatedData.data[i + 3] > 20 && brightness > 12) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  if (maxX < minX || maxY < minY) {
+    minX = 0;
+    minY = 0;
+    maxX = temporary.width - 1;
+    maxY = temporary.height - 1;
+  }
+
+  const normalizedW = maxX - minX + 1;
+  const normalizedH = maxY - minY + 1;
+
+  const canonical = document.createElement("canvas");
+  canonical.width = 240;
+  canonical.height = 180;
+  const canonicalCtx = canonical.getContext("2d", { willReadFrequently: true });
+  canonicalCtx.fillStyle = "black";
+  canonicalCtx.fillRect(0, 0, canonical.width, canonical.height);
+
+  const scale = Math.min(
+    canonical.width * 0.86 / normalizedW,
+    canonical.height * 0.86 / normalizedH
+  );
+
+  const drawW = normalizedW * scale;
+  const drawH = normalizedH * scale;
+
+  canonicalCtx.drawImage(
+    temporary,
+    minX, minY, normalizedW, normalizedH,
+    (canonical.width - drawW) / 2,
+    (canonical.height - drawH) / 2,
+    drawW,
+    drawH
+  );
+
+  const result = canonicalCtx.getImageData(
+    0, 0, canonical.width, canonical.height
+  );
+
+  productCanvas.width = canonical.width;
+  productCanvas.height = canonical.height;
   productCtx.putImageData(result, 0, 0);
 
   return result;
@@ -1191,33 +1406,42 @@ function frameQuality(imageData, box) {
 function classify(imageData) {
   const started = performance.now();
   const feature = featureVector(imageData);
-  const good = nearest(feature, goodSamples);
-  const bad = badSamples.length ? nearest(feature, badSamples) : { difference: Infinity, index: -1 };
-  const rotatedGood = nearest(featureVector(rotate180(imageData)), goodSamples);
-  const threshold = Number($("goodThreshold").value);
+  const goodDifference = modelDifference(feature, goodModel);
+  const badDifference = modelDifference(feature, badModel);
+  const rotatedGoodDifference = modelDifference(
+    featureVector(rotate180(imageData)),
+    goodModel
+  );
 
   let rejected = true;
   let reason = "Unknown product";
 
-  if (rotatedGood.difference + CONFIG.upsideDownMargin < good.difference) {
-    rejected = true;
+  if (
+    rotatedGoodDifference + CONFIG.upsideDownMargin <
+    goodDifference
+  ) {
     reason = "Upside-down orientation";
-  } else if (bad.difference + CONFIG.badVetoMargin < good.difference) {
-    rejected = true;
-    reason = "Matches known reject";
-  } else if (good.difference <= threshold) {
+  } else if (
+    badModel &&
+    badDifference + CONFIG.badVetoMargin < goodDifference
+  ) {
+    reason = "Matches known reject model";
+  } else if (
+    goodModel &&
+    goodDifference <= goodModel.threshold
+  ) {
     rejected = false;
-    reason = "Confirmed good match";
+    reason = "Matches learned GOOD model";
   } else {
-    rejected = true;
-    reason = "Does not match accepted good samples";
+    reason = "Outside learned GOOD model";
   }
 
   return {
     rejected,
     reason,
-    goodDifference: good.difference,
-    badDifference: bad.difference,
+    goodDifference,
+    badDifference,
+    threshold: goodModel?.threshold ?? CONFIG.modelFloor,
     latency: performance.now() - started
   };
 }
@@ -1316,6 +1540,7 @@ function addLog(track, result, imageData) {
       ${new Date().toLocaleTimeString()}<br>
       ${result.reason}<br>
       Good difference: ${result.goodDifference.toFixed(1)}%<br>
+      Model threshold: ${Number.isFinite(result.threshold) ? result.threshold.toFixed(1) : "—"}%<br>
       Decision time: ${Math.round(result.latency)} ms<br>
       Frame votes: ${result.votes || "1/1"}<br>
       Sharpness: ${Number.isFinite(result.sharpness) ? result.sharpness.toFixed(1) : "—"}
@@ -1383,6 +1608,8 @@ function decideTrack(track) {
 
   $("latencyMetric").textContent = `${Math.round(result.latency)} ms`;
   $("decisionMetric").textContent = result.rejected ? "REJECT" : "PASS";
+  $("qualityMetric").textContent =
+    Number.isFinite(result.quality) ? result.quality.toFixed(1) : "—";
 
   if (result.rejected) {
     rejectCount++;
@@ -1396,7 +1623,7 @@ function decideTrack(track) {
   addLog(track, result, result.imageData);
 }
 
-function updateTracks(boxes, frame) {
+function updateTracks(boxes, frame, mask) {
   const unmatched = new Set(boxes.map((_, i) => i));
 
   // Process older tracks first to keep identity stable.
@@ -1451,7 +1678,7 @@ function updateTracks(boxes, frame) {
       track.age++;
       track.misses = 0;
 
-      const image = cropProduct(frame, box);
+      const image = cropProduct(frame, box, mask);
       const sharpness = simpleSharpness(image);
 
       const quality = frameQuality(image, box);
@@ -1506,7 +1733,7 @@ function updateTracks(boxes, frame) {
 
     if (tooCloseToExisting) continue;
 
-    const image = cropProduct(frame, box);
+    const image = cropProduct(frame, box, mask);
     const id = nextTrackId++;
 
     const track = {
@@ -1606,7 +1833,7 @@ function processCameraFrame(timestamp) {
       const frame = captureRoi();
       const mask = createMask(frame);
       const boxes = components(mask);
-      updateTracks(boxes, frame);
+      updateTracks(boxes, frame, mask);
       drawTracks();
 
       if (!boxes.length && !tracks.size) {
@@ -1683,15 +1910,51 @@ function makeSample(imageData, type) {
   };
 }
 
+function extractLargestNormalizedObject(frame) {
+  if (!beltModel) {
+    throw new Error("Capture at least 3 belt samples first.");
+  }
+
+  const mask = createMask(frame);
+  const boxes = components(mask);
+
+  if (!boxes.length) {
+    throw new Error("No complete object detected.");
+  }
+
+  const bestBox = boxes[0];
+
+  if (touchesBorder(bestBox)) {
+    throw new Error("Object touches the ROI border. Centre it and try again.");
+  }
+
+  return cropProduct(frame, bestBox, mask);
+}
+
 function addCurrentSample(type) {
   try {
-    const image = captureRoi();
-    const sample = makeSample(image, type);
-    if (type === "belt") beltSamples.push(sample);
-    if (type === "good") goodSamples.push(sample);
-    if (type === "bad") badSamples.push(sample);
+    const frame = captureRoi();
+
+    if (type === "belt") {
+      beltSamples.push(makeSample(frame, type));
+      if (beltSamples.length >= 3) buildBeltModel();
+    } else {
+      if (beltSamples.length < 3) {
+        throw new Error("Capture at least 3 belt samples first.");
+      }
+
+      if (!beltModel) buildBeltModel();
+      const normalized = extractLargestNormalizedObject(frame);
+      const sample = makeSample(normalized, type);
+
+      if (type === "good") goodSamples.push(sample);
+      if (type === "bad") badSamples.push(sample);
+    }
+
     renderBanks();
     calibrated = false;
+    goodModel = null;
+    badModel = null;
   } catch (error) {
     alert(error.message);
   }
@@ -1703,6 +1966,7 @@ async function imageFileToSample(file, type) {
   canvas.width = PROCESS_W;
   canvas.height = PROCESS_H;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1715,7 +1979,79 @@ async function imageFileToSample(file, type) {
   ctx.drawImage(bitmap, dx, dy, dw, dh);
   bitmap.close();
 
-  return makeSample(ctx.getImageData(0, 0, canvas.width, canvas.height), type);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  if (type === "belt") return makeSample(imageData, type);
+
+  const corners = [
+    [2, 2],
+    [canvas.width - 3, 2],
+    [2, canvas.height - 3],
+    [canvas.width - 3, canvas.height - 3]
+  ];
+
+  let bgR = 0, bgG = 0, bgB = 0;
+  for (const [x, y] of corners) {
+    const i = (y * canvas.width + x) * 4;
+    bgR += imageData.data[i];
+    bgG += imageData.data[i + 1];
+    bgB += imageData.data[i + 2];
+  }
+
+  bgR /= corners.length;
+  bgG /= corners.length;
+  bgB /= corners.length;
+
+  const mask = new Uint8Array(canvas.width * canvas.height);
+  let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
+  let count = 0, sumX = 0, sumY = 0, sumXX = 0, sumYY = 0, sumXY = 0;
+
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      const p = y * canvas.width + x;
+      const i = p * 4;
+      const dr = imageData.data[i] - bgR;
+      const dg = imageData.data[i + 1] - bgG;
+      const db = imageData.data[i + 2] - bgB;
+      const distance = Math.sqrt(dr * dr + dg * dg + db * db);
+
+      if (distance > 38) {
+        mask[p] = 255;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+        count++;
+        sumX += x;
+        sumY += y;
+        sumXX += x * x;
+        sumYY += y * y;
+        sumXY += x * y;
+      }
+    }
+  }
+
+  if (!count || maxX <= minX || maxY <= minY) {
+    return makeSample(imageData, type);
+  }
+
+  const cx = sumX / count;
+  const cy = sumY / count;
+  const covXX = sumXX / count - cx * cx;
+  const covYY = sumYY / count - cy * cy;
+  const covXY = sumXY / count - cx * cy;
+
+  const box = {
+    x: minX,
+    y: minY,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+    centreX: cx,
+    centreY: cy,
+    angle: 0.5 * Math.atan2(2 * covXY, covXX - covYY)
+  };
+
+  return makeSample(cropProduct(imageData, box, mask), type);
 }
 
 async function handleUpload(event, type) {
@@ -1736,26 +2072,61 @@ async function captureBurst(type) {
     alert("Start the camera first.");
     return;
   }
+
   if (running) {
     alert("Stop inspection before capturing a reference burst.");
     return;
   }
 
-  const target = type === "belt" ? beltSamples : type === "good" ? goodSamples : badSamples;
+  if (type !== "belt" && beltSamples.length < 3) {
+    alert("Capture at least 3 belt samples first.");
+    return;
+  }
+
+  const target =
+    type === "belt"
+      ? beltSamples
+      : type === "good"
+        ? goodSamples
+        : badSamples;
+
+  if (type !== "belt" && !beltModel) buildBeltModel();
+
   setStatus(`CAPTURING ${type.toUpperCase()} BURST…`, "inspecting");
+  let added = 0;
 
   for (let i = 0; i < CONFIG.burstFrames; i++) {
-    const image = captureRoi();
-    target.push(makeSample(image, type));
+    try {
+      const frame = captureRoi();
+      const image =
+        type === "belt"
+          ? frame
+          : extractLargestNormalizedObject(frame);
+
+      target.push(makeSample(image, type));
+      added++;
+    } catch {
+      // Ignore partial/no-object frames.
+    }
+
     await new Promise(resolve => setTimeout(resolve, 120));
   }
 
-  // Keep only latest 24.
   while (target.length > 24) target.shift();
+
+  if (type === "belt" && beltSamples.length >= 3) {
+    buildBeltModel();
+  }
 
   renderBanks();
   calibrated = false;
-  setStatus(`CAPTURED ${CONFIG.burstFrames} ${type.toUpperCase()} REFERENCES`, "ready");
+  goodModel = null;
+  badModel = null;
+
+  setStatus(
+    `ADDED ${added} ${type.toUpperCase()} NORMALIZED REFERENCES`,
+    "ready"
+  );
 }
 
 function renderBank(containerId, samples, type) {
@@ -1780,16 +2151,42 @@ function renderBanks() {
 
 function calibrate() {
   if (beltSamples.length < 3 || goodSamples.length < 3) {
-    alert("Use at least 3 belt samples and 3 good samples.");
+    alert("Use at least 3 belt samples and 3 normalized good samples.");
     return;
   }
 
   buildBeltModel();
+
+  for (const sample of goodSamples) {
+    if (sample.imageData) sample.feature = featureVector(sample.imageData);
+  }
+
+  for (const sample of badSamples) {
+    if (sample.imageData) sample.feature = featureVector(sample.imageData);
+  }
+
+  goodModel = buildReferenceModel(goodSamples);
+  badModel = badSamples.length >= 2
+    ? buildReferenceModel(badSamples)
+    : null;
+
+  if (!goodModel) {
+    alert("Could not build the GOOD model. Recapture clear product samples.");
+    return;
+  }
+
   calibrated = true;
   tracks.clear();
+
+  $("modelSpreadMetric").textContent =
+    `${goodModel.spread.toFixed(1)} / ${goodModel.threshold.toFixed(1)}`;
+
   $("calibrationMessage").textContent =
-    `Calibration complete: ${beltSamples.length} belt, ${goodSamples.length} good, ${badSamples.length} reject references.`;
-  setStatus("CALIBRATION COMPLETE — READY", "pass");
+    `GOOD model built from ${goodModel.sampleCount} normalized samples. ` +
+    `Spread ${goodModel.spread.toFixed(1)}%, acceptance limit ` +
+    `${goodModel.threshold.toFixed(1)}%.`;
+
+  setStatus("GOOD MODEL READY — START INSPECTION", "pass");
 }
 
 function saveProfile() {
@@ -1803,19 +2200,21 @@ function saveProfile() {
     thumbnail: sample.thumbnail
   }));
 
-  localStorage.setItem("uli_clean_v3", JSON.stringify({
+  localStorage.setItem("uli_normalized_v4", JSON.stringify({
     version: 1,
     ROI,
     belt: compact(beltSamples),
     good: compact(goodSamples),
-    bad: compact(badSamples)
+    bad: compact(badSamples),
+    goodModel,
+    badModel
   }));
 
   alert("Profile saved. For best belt subtraction after reload, recapture belt samples in the current session.");
 }
 
 function loadProfile() {
-  const raw = localStorage.getItem("uli_clean_v3");
+  const raw = localStorage.getItem("uli_normalized_v4");
   if (!raw) {
     alert("No saved profile.");
     return;
@@ -1833,6 +2232,8 @@ function loadProfile() {
   beltSamples = restore(saved.belt, "belt");
   goodSamples = restore(saved.good, "good");
   badSamples = restore(saved.bad, "bad");
+  goodModel = saved.goodModel || buildReferenceModel(goodSamples);
+  badModel = saved.badModel || (badSamples.length >= 2 ? buildReferenceModel(badSamples) : null);
   calibrated = false;
   beltModel = null;
   renderBanks();
@@ -1844,7 +2245,7 @@ function loadProfile() {
 }
 
 function clearProfile() {
-  localStorage.removeItem("uli_clean_v3");
+  localStorage.removeItem("uli_normalized_v4");
   alert("Saved profile deleted.");
 }
 
@@ -1871,7 +2272,11 @@ function readAdvancedSettings() {
     passVotes: Number($("cfgPassVotes").value),
     upsideDownMargin: Number($("cfgUpsideDownMargin").value),
     badVetoMargin: Number($("cfgBadVetoMargin").value),
-    morphology: Number($("cfgMorphology").value)
+    morphology: Number($("cfgMorphology").value),
+    modelMultiplier: Number($("cfgModelMultiplier").value),
+    modelFloor: Number($("cfgModelFloor").value),
+    modelCeiling: Number($("cfgModelCeiling").value),
+    rotationNormalize: Number($("cfgRotationNormalize").value)
   };
 }
 
@@ -1894,6 +2299,10 @@ function writeAdvancedSettings(settings) {
   $("cfgUpsideDownMargin").value = settings.upsideDownMargin;
   $("cfgBadVetoMargin").value = settings.badVetoMargin;
   $("cfgMorphology").value = settings.morphology;
+  $("cfgModelMultiplier").value = settings.modelMultiplier ?? 2.2;
+  $("cfgModelFloor").value = settings.modelFloor ?? 8;
+  $("cfgModelCeiling").value = settings.modelCeiling ?? 28;
+  $("cfgRotationNormalize").value = settings.rotationNormalize ?? 1;
 }
 
 function applyAdvancedSettings(settings = readAdvancedSettings()) {
@@ -1933,7 +2342,11 @@ function applyAdvancedSettings(settings = readAdvancedSettings()) {
     passVotes: settings.passVotes,
     upsideDownMargin: settings.upsideDownMargin,
     badVetoMargin: settings.badVetoMargin,
-    morphology: settings.morphology
+    morphology: settings.morphology,
+    modelMultiplier: settings.modelMultiplier,
+    modelFloor: settings.modelFloor,
+    modelCeiling: settings.modelCeiling,
+    rotationNormalize: settings.rotationNormalize
   };
 
   workCanvas.width = PROCESS_W;
@@ -1963,7 +2376,9 @@ const ADVANCED_PRESETS = {
     minSeparation: 5, maxTracks: 16, entryZone: .14,
     decisionStart: .25, decisionEnd: .67, minSharpness: 2.5,
     borderMargin: .02, voteFrames: 2, passVotes: 1,
-    upsideDownMargin: 2, badVetoMargin: 2, morphology: 0
+    upsideDownMargin: 2, badVetoMargin: 2, morphology: 0,
+    modelMultiplier: 2.5, modelFloor: 9, modelCeiling: 32,
+    rotationNormalize: 1
   },
   balanced: {
     width: 320, height: 240, ...DEFAULT_CONFIG
@@ -1974,7 +2389,9 @@ const ADVANCED_PRESETS = {
     minSeparation: 9, maxTracks: 10, entryZone: .18,
     decisionStart: .34, decisionEnd: .76, minSharpness: 8,
     borderMargin: .05, voteFrames: 5, passVotes: 3,
-    upsideDownMargin: 1.5, badVetoMargin: 1.5, morphology: 1
+    upsideDownMargin: 1.5, badVetoMargin: 1.5, morphology: 1,
+    modelMultiplier: 1.8, modelFloor: 6, modelCeiling: 22,
+    rotationNormalize: 1
   }
 };
 
