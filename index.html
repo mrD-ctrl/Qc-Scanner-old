@@ -6,7 +6,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
-  <title>Universal Line Inspector — Fail-Safe Detection v8.3</title>
+  <title>Universal Line Inspector V2 — Full Sensor</title>
 
   <style>
     :root {
@@ -112,7 +112,7 @@
       width: 100%;
       height: auto;
       min-height: 0;
-      aspect-ratio: 16 / 9 !important;
+      aspect-ratio: 4 / 3;
       overflow: hidden;
       display: block;
       background: #000;
@@ -124,7 +124,7 @@
       inset: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       object-position: center center;
       background: #000;
     }
@@ -407,6 +407,9 @@
     .zone-meta { font-size:12px; color:#94a3b8; margin-top:3px; }
     .ocr-status { margin-top:8px; font-size:13px; color:#93c5fd; }
 
+  
+    .roi-presets { margin-top:10px; flex-wrap:wrap; }
+    .roi-presets button { flex:1 1 150px; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
@@ -437,7 +440,7 @@
         <canvas id="displayCanvas"></canvas>
 
         <div class="roi-overlay" id="roiOverlay">
-          <span class="roi-label">TRUE 16:9 INSPECTION AREA</span>
+          <span class="roi-label">FULL SENSOR INSPECTION AREA</span>
         </div>
       </div>
 
@@ -449,10 +452,16 @@
       </div>
 
       <p class="helper">
-        The inspection window is locked to true 16:9. Rotate or mount the phone
-        horizontally to capture the widest physical belt area. In portrait mode,
-        the camera is centre-cropped to 16:9 so black bars do not appear.
+        The full camera sensor is displayed and processed without forced 16:9
+        cropping. Select the ROI that matches your conveyor direction, then
+        recalibrate with the camera fixed in that position.
       </p>
+
+      <div class="controls roi-presets">
+        <button id="roiFullBtn" class="secondary">Full Frame ROI</button>
+        <button id="roiVerticalBtn" class="secondary">Vertical Belt ROI</button>
+        <button id="roiHorizontalBtn" class="secondary">Horizontal Belt ROI</button>
+      </div>
 
       <div class="slider-row">
         <label for="zoomRange">Camera zoom</label>
@@ -671,12 +680,12 @@
   <script>
     "use strict";
 
-    const ROI = Object.freeze({
-      x: 0.015,
+    let ROI = {
+      x: 0.02,
       y: 0.02,
-      width: 0.97,
+      width: 0.96,
       height: 0.96
-    });
+    };
 
     const PROCESS_SIZE = 320;
     const PROCESS_INTERVAL_MS = 90;
@@ -738,6 +747,9 @@
 
     const scanBtn = document.getElementById("scanBtn");
     const fullscreenCameraBtn = document.getElementById("fullscreenCameraBtn");
+    const roiFullBtn = document.getElementById("roiFullBtn");
+    const roiVerticalBtn = document.getElementById("roiVerticalBtn");
+    const roiHorizontalBtn = document.getElementById("roiHorizontalBtn");
     const liveStatus = document.getElementById("liveStatus");
     const muteBtn = document.getElementById("muteBtn");
     const resetRejectBtn = document.getElementById("resetRejectBtn");
@@ -848,7 +860,9 @@
 
 
     function updateCameraStageAspectRatio() {
-      stage.style.aspectRatio = "16 / 9";
+      const width = video.videoWidth || 4;
+      const height = video.videoHeight || 3;
+      stage.style.aspectRatio = `${width} / ${height}`;
       stage.style.height = "auto";
     }
 
@@ -875,6 +889,23 @@
       }
     }
 
+    function setRoiPreset(type) {
+      if (type === "vertical") {
+        ROI = { x: 0.14, y: 0.02, width: 0.72, height: 0.96 };
+      } else if (type === "horizontal") {
+        ROI = { x: 0.02, y: 0.16, width: 0.96, height: 0.68 };
+      } else {
+        ROI = { x: 0.02, y: 0.02, width: 0.96, height: 0.96 };
+      }
+
+      calibrated = false;
+      updateRoiOverlay();
+      setStatus(
+        `${type.toUpperCase()} ROI SELECTED — RECALIBRATE BEFORE INSPECTION`,
+        "status-entering"
+      );
+    }
+
     async function startCamera(facingMode = "environment") {
       stopCamera();
 
@@ -883,8 +914,7 @@
           video: {
             facingMode: { ideal: facingMode },
             width: { ideal: 1920, min: 640 },
-            height: { ideal: 1080, min: 480 },
-            aspectRatio: { ideal: 1.7777777778 },
+            height: { ideal: 1440, min: 480 },
             frameRate: { ideal: 60, min: 24 }
           },
           audio: false
@@ -942,6 +972,18 @@
       video.style.transformOrigin = "center center";
     }
 
+    function updateRoiOverlay() {
+      const displayed = getDisplayedVideoRect();
+      roiOverlay.style.left =
+        `${displayed.offsetX + displayed.drawWidth * ROI.x}px`;
+      roiOverlay.style.top =
+        `${displayed.offsetY + displayed.drawHeight * ROI.y}px`;
+      roiOverlay.style.width =
+        `${displayed.drawWidth * ROI.width}px`;
+      roiOverlay.style.height =
+        `${displayed.drawHeight * ROI.height}px`;
+    }
+
     function resizeDisplayCanvas() {
       const rect = stage.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
@@ -951,39 +993,28 @@
       displayCanvas.style.width = `${rect.width}px`;
       displayCanvas.style.height = `${rect.height}px`;
       displayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      updateRoiOverlay();
     }
 
     function getDisplayedVideoRect() {
       const stageWidth = Math.max(1, stage.clientWidth);
       const stageHeight = Math.max(1, stage.clientHeight);
-      const sourceWidth = Math.max(1, video.videoWidth || 1920);
-      const sourceHeight = Math.max(1, video.videoHeight || 1080);
+      const sourceWidth = Math.max(1, video.videoWidth || 4);
+      const sourceHeight = Math.max(1, video.videoHeight || 3);
 
-      const stageRatio = stageWidth / stageHeight;
-      const sourceRatio = sourceWidth / sourceHeight;
-
-      let sourceX = 0;
-      let sourceY = 0;
-      let sourceCropWidth = sourceWidth;
-      let sourceCropHeight = sourceHeight;
-
-      if (sourceRatio > stageRatio) {
-        sourceCropWidth = sourceHeight * stageRatio;
-        sourceX = (sourceWidth - sourceCropWidth) / 2;
-      } else if (sourceRatio < stageRatio) {
-        sourceCropHeight = sourceWidth / stageRatio;
-        sourceY = (sourceHeight - sourceCropHeight) / 2;
-      }
+      const scale = Math.min(stageWidth / sourceWidth, stageHeight / sourceHeight);
+      const drawWidth = sourceWidth * scale;
+      const drawHeight = sourceHeight * scale;
 
       return {
-        offsetX: 0,
-        offsetY: 0,
-        drawWidth: stageWidth,
-        drawHeight: stageHeight,
-        sourceX,
-        sourceY,
-        sourceCropWidth,
-        sourceCropHeight
+        offsetX: (stageWidth - drawWidth) / 2,
+        offsetY: (stageHeight - drawHeight) / 2,
+        drawWidth,
+        drawHeight,
+        sourceX: 0,
+        sourceY: 0,
+        sourceCropWidth: sourceWidth,
+        sourceCropHeight: sourceHeight
       };
     }
 
@@ -992,35 +1023,17 @@
         throw new Error("Camera frame is not ready.");
       }
 
-      const visible = getDisplayedVideoRect();
-
-      const sx = Math.round(
-        visible.sourceX + visible.sourceCropWidth * ROI.x
-      );
-      const sy = Math.round(
-        visible.sourceY + visible.sourceCropHeight * ROI.y
-      );
-      const sWidth = Math.round(
-        visible.sourceCropWidth * ROI.width
-      );
-      const sHeight = Math.round(
-        visible.sourceCropHeight * ROI.height
-      );
+      const sx = Math.round(video.videoWidth * ROI.x);
+      const sy = Math.round(video.videoHeight * ROI.y);
+      const sWidth = Math.max(1, Math.round(video.videoWidth * ROI.width));
+      const sHeight = Math.max(1, Math.round(video.videoHeight * ROI.height));
 
       procCanvas.width = PROCESS_SIZE;
       procCanvas.height = PROCESS_SIZE;
-
       procCtx.clearRect(0, 0, PROCESS_SIZE, PROCESS_SIZE);
       procCtx.drawImage(
-        video,
-        sx,
-        sy,
-        sWidth,
-        sHeight,
-        0,
-        0,
-        PROCESS_SIZE,
-        PROCESS_SIZE
+        video, sx, sy, sWidth, sHeight,
+        0, 0, PROCESS_SIZE, PROCESS_SIZE
       );
 
       roiPreviewCtx.clearRect(0, 0, PROCESS_SIZE, PROCESS_SIZE);
@@ -2667,10 +2680,10 @@
       if (!name?.trim()) return;
 
       const saved = {
-        version: 4,
+        version: 5,
         name: name.trim(),
         savedAt: new Date().toISOString(),
-        roi: ROI,
+        roi: { ...ROI },
         inspectionZones,
         settings: {
           differenceThreshold: differenceThreshold.value,
@@ -2717,7 +2730,7 @@
       try {
         const saved = JSON.parse(raw);
 
-        if (saved.version !== 4) {
+        if (saved.version !== 5) {
           alert(
             "This saved calibration uses the older inspection engine. " +
             "Please capture the samples again and recalibrate for smart " +
