@@ -6,7 +6,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
-  <title>Universal Line Inspector V2.1 — Fast Burst & Video Calibration</title>
+  <title>Universal Line Inspector V2.2 — Working Fast Burst</title>
 
   <style>
     :root {
@@ -793,7 +793,8 @@
     const MAX_BURST_FRAMES = 3;
     const MAX_INSPECTION_WAIT_MS = 240;
     const BORDERLINE_MARGIN = 3.5;
-    const MIN_SHARPNESS_SCORE = 8.5;
+    const MIN_SHARPNESS_SCORE = 3.5;
+    const MIN_CAPTURED_VIDEO_FRAMES = 3;
 
 
     const video = document.getElementById("webcam");
@@ -1225,8 +1226,8 @@
     }
 
     async function recordReferenceFrames(mode) {
-      if (!cameraStream) {
-        alert("Start the camera first.");
+      if (!cameraStream || !video.videoWidth || !video.videoHeight) {
+        alert("Start the camera and wait until the live picture is visible.");
         return;
       }
 
@@ -1234,8 +1235,9 @@
 
       const durationMs = Number(videoRecordSeconds.value) * 1000;
       const keepLimit = Number(maxVideoFrames.value);
-      const candidates = [];
+      const allFrames = [];
       const startTime = performance.now();
+      let capturedCount = 0;
 
       videoCaptureMode = mode;
       videoCaptureCancelled = false;
@@ -1245,25 +1247,37 @@
       recordBadVideoBtn.disabled = true;
 
       videoCalibrationStatus.textContent =
-        `Recording ${mode} reference frames…`;
+        `Recording ${mode}: 0 frames captured…`;
 
       await new Promise(resolve => {
         const capture = () => {
-          if (videoCaptureCancelled || performance.now() - startTime >= durationMs) {
+          if (
+            videoCaptureCancelled ||
+            performance.now() - startTime >= durationMs
+          ) {
             resolve();
             return;
           }
 
           try {
             const frame = captureCurrentReferenceFrame();
-            if (frame.sharpness >= MIN_SHARPNESS_SCORE) {
-              candidates.push(frame);
-            }
+            allFrames.push(frame);
+            capturedCount++;
+
+            const remaining = Math.max(
+              0,
+              Math.ceil(
+                (durationMs - (performance.now() - startTime)) / 1000
+              )
+            );
+
+            videoCalibrationStatus.textContent =
+              `Recording ${mode}: ${capturedCount} frames · ${remaining}s remaining`;
           } catch (error) {
             console.warn("Reference frame skipped:", error);
           }
 
-          videoCaptureTimer = setTimeout(capture, 90);
+          videoCaptureTimer = setTimeout(capture, 100);
         };
 
         capture();
@@ -1276,24 +1290,50 @@
       recordGoodVideoBtn.disabled = false;
       recordBadVideoBtn.disabled = false;
 
-      candidates.sort((a, b) => b.sharpness - a.sharpness);
+      if (!allFrames.length) {
+        videoCalibrationStatus.textContent =
+          "No frames were captured. Restart the camera and try again.";
+        return;
+      }
+
+      // Prefer sharp frames, but never throw away the complete recording.
+      const sharpFrames = allFrames.filter(
+        frame => frame.sharpness >= MIN_SHARPNESS_SCORE
+      );
+
+      const candidatePool =
+        sharpFrames.length >= MIN_CAPTURED_VIDEO_FRAMES
+          ? sharpFrames
+          : allFrames;
+
+      candidatePool.sort((a, b) => b.sharpness - a.sharpness);
 
       const selected = [];
-      for (const candidate of candidates) {
+      for (const candidate of candidatePool) {
         if (selected.length >= keepLimit) break;
+
+        const diversityLimit = mode === "belt" ? 0.8 : 1.6;
 
         if (
           selected.length === 0 ||
-          isDiverseEnough(candidate, selected, mode === "belt" ? 1.5 : 2.5)
+          isDiverseEnough(candidate, selected, diversityLimit)
         ) {
           selected.push(candidate);
         }
       }
 
-      if (!selected.length) {
-        videoCalibrationStatus.textContent =
-          "No sharp frames were captured. Improve lighting or hold the camera steady.";
-        return;
+      // Diversity filtering can be too strict on a stable phone image.
+      // Fill remaining places with the sharpest non-selected frames.
+      if (selected.length < Math.min(keepLimit, MIN_CAPTURED_VIDEO_FRAMES)) {
+        for (const candidate of candidatePool) {
+          if (selected.length >= Math.min(keepLimit, MIN_CAPTURED_VIDEO_FRAMES)) {
+            break;
+          }
+
+          if (!selected.includes(candidate)) {
+            selected.push(candidate);
+          }
+        }
       }
 
       const target =
@@ -1305,7 +1345,7 @@
 
       for (const frame of selected) {
         target.push({
-          imageData: frame.imageData,
+          imageData: cloneImageData(frame.imageData),
           feature: frame.feature,
           thumbnail: frame.thumbnail
         });
@@ -1315,7 +1355,8 @@
       calibrated = false;
 
       videoCalibrationStatus.textContent =
-        `Added ${selected.length} sharp, varied ${mode} reference frames. Recalibrate before inspection.`;
+        `Captured ${allFrames.length} frames and added ${selected.length} ` +
+        `${mode} references. Press Calibrate before inspection.`;
     }
 
     function stopReferenceRecording() {
@@ -1979,6 +2020,20 @@
         track.centreY = candidate.centreY;
         track.imageData = candidate.candidateImage;
         track.nearestGood = candidate.nearestGood;
+
+        if (!Array.isArray(track.burstFrames)) {
+          track.burstFrames = [];
+        }
+
+        track.burstFrames.push({
+          imageData: cloneImageData(candidate.candidateImage),
+          sharpness: calculateSharpness(candidate.candidateImage),
+          capturedAt: performance.now()
+        });
+
+        track.burstFrames.sort((a, b) => b.sharpness - a.sharpness);
+        track.burstFrames = track.burstFrames.slice(0, MAX_BURST_FRAMES);
+
         track.resemblesProduct = candidate.resemblesProduct;
         track.solidUnknownObject = candidate.solidUnknownObject;
         track.requiredConfirmationFrames = candidate.requiredConfirmationFrames;
@@ -2019,12 +2074,18 @@
           resemblesProduct: candidate.resemblesProduct,
           solidUnknownObject: candidate.solidUnknownObject,
           requiredConfirmationFrames: candidate.requiredConfirmationFrames,
+          createdAt: performance.now(),
           age: 1,
           stableFrames: 1,
           missedFrames: 0,
           inspected: false,
           processing: false,
           result: null,
+          burstFrames: [{
+            imageData: cloneImageData(candidate.candidateImage),
+            sharpness: calculateSharpness(candidate.candidateImage),
+            capturedAt: performance.now()
+          }],
           lastSeenAt: performance.now()
         });
       }
@@ -2710,8 +2771,8 @@
           Array.isArray(track.burstFrames) && track.burstFrames.length
             ? [...track.burstFrames]
             : [{
-                imageData: track.candidateImage,
-                sharpness: calculateSharpness(track.candidateImage)
+                imageData: track.imageData,
+                sharpness: calculateSharpness(track.imageData)
               }];
 
         burst.sort((a, b) => b.sharpness - a.sharpness);
@@ -2754,7 +2815,35 @@
         inspectionLatency.textContent = `${Math.round(elapsed)} ms`;
         fastTrackStatus.textContent = track.result.rejected ? "REJECT" : "PASS";
 
-        if (!track.result.rejected) return;
+        if (!track.result.rejected) {
+          const passItem = document.createElement("div");
+          passItem.className = "log-item";
+          passItem.dataset.result = "pass";
+
+          const passImageURL = imageDataToDataURL(track.result.imageData);
+          passItem.innerHTML = `
+            <img src="${passImageURL}" alt="Passed product snapshot" />
+            <div class="log-info">
+              <strong style="color:#4ade80">PASS · Product ID ${track.id}</strong><br />
+              ${new Date().toLocaleTimeString()}<br />
+              ${track.result.reason}<br />
+              Good difference:
+              ${Number.isFinite(track.result.nearestGood)
+                ? track.result.nearestGood.toFixed(1)
+                : "N/A"}%
+            </div>
+          `;
+
+          const logList = document.getElementById("logList");
+          logList.prepend(passItem);
+
+          const passItems = logList.querySelectorAll('[data-result="pass"]');
+          if (passItems.length > 10) {
+            passItems[passItems.length - 1].remove();
+          }
+
+          return;
+        }
 
         incrementRejectCount();
         triggerAlarm();
@@ -2802,16 +2891,23 @@
           continue;
         }
 
-        const ageMs = now - (track.createdAt || now);
-        const enoughFrames =
-          Array.isArray(track.burstFrames) &&
-          track.burstFrames.length >= FAST_CONFIRM_FRAMES;
+        const createdAt = Number.isFinite(track.createdAt)
+          ? track.createdAt
+          : track.lastSeenAt - MAX_INSPECTION_WAIT_MS;
 
+        const ageMs = now - createdAt;
+        const burstLength = Array.isArray(track.burstFrames)
+          ? track.burstFrames.length
+          : 0;
+
+        const enoughFrames = burstLength >= FAST_CONFIRM_FRAMES;
         const deadlineReached = ageMs >= MAX_INSPECTION_WAIT_MS;
 
         if (!enoughFrames && !deadlineReached) continue;
 
-        if (!track.resemblesProduct && !track.solidUnknownObject) continue;
+        if (!track.resemblesProduct && !track.solidUnknownObject) {
+          continue;
+        }
 
         void logRejectForTrack(track);
       }
@@ -2825,9 +2921,17 @@
       const passes = visible.filter(
         (track) => track.inspected && !track.result?.rejected
       );
-      const waiting = visible.filter((track) => !track.inspected);
+      const waiting = visible.filter(
+        (track) => !track.inspected && !track.processing
+      );
+      const processing = visible.filter((track) => track.processing);
 
-      if (visible.length === 0) {
+      if (processing.length > 0) {
+        setStatus(
+          `INSPECTING PRODUCT ID ${processing[0].id}…`,
+          "status-entering"
+        );
+      } else if (visible.length === 0) {
         if (foregroundCoverage > Number(presenceThreshold.value) / 100) {
           setStatus(
             "BELT/BACKGROUND MOVEMENT IGNORED — WAITING FOR A REAL PRODUCT",
@@ -2972,7 +3076,7 @@
       if (!name?.trim()) return;
 
       const saved = {
-        version: 6,
+        version: 7,
         name: name.trim(),
         savedAt: new Date().toISOString(),
         roi: { ...ROI },
@@ -3022,7 +3126,7 @@
       try {
         const saved = JSON.parse(raw);
 
-        if (saved.version !== 6) {
+        if (saved.version !== 7) {
           alert(
             "This saved calibration uses the older inspection engine. " +
             "Please capture the samples again and recalibrate for smart " +
