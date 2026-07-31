@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>High-Speed QC Inspection & Alarm System</title>
+  <title>High-Speed Industrial Line Inspector</title>
   <style>
     :root {
       --bg-color: #0f172a;
@@ -32,7 +32,7 @@
     .card { background: var(--card-bg); border-radius: 12px; padding: 12px; border: 1px solid #334155; }
     .card h2 { font-size: 0.95rem; margin-bottom: 8px; color: var(--accent); }
 
-    video, canvas, img { width: 100%; height: auto; border-radius: 8px; background: #000; object-fit: contain; max-height: 240px; }
+    video, canvas, img { width: 100%; height: auto; border-radius: 8px; background: #000; object-fit: contain; max-height: 220px; }
     
     .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     button, input[type="file"] { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
@@ -42,7 +42,7 @@
     .status-badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 6px; width: 100%; text-align: center; }
     .status-pass { background: var(--success); }
     .status-fail { background: var(--danger); }
-    .status-empty { background: #475569; color: var(--text-muted); }
+    .status-empty { background: #334155; color: var(--text-muted); }
     .status-standby { background: var(--warning); color: #000; }
 
     .slider-group { margin-top: 8px; font-size: 0.75rem; display: flex; align-items: center; gap: 8px; }
@@ -58,12 +58,12 @@
 
   <header>
     <div>
-      <h1>QC Line Inspector</h1>
-      <p style="font-size: 0.7rem; color: var(--text-muted);">High-speed anomaly & color detection</p>
+      <h1>High-Speed Line Inspector (100+ PPM)</h1>
+      <p style="font-size: 0.7rem; color: var(--text-muted);">Real-time high-speed anomaly scanner</p>
     </div>
     
     <div class="header-actions">
-      <button id="muteBtn" onclick="toggleMute()" style="background: #475569;">🔊 Sound: ON</button>
+      <button id="muteBtn" onclick="toggleMute()" style="background: #475569;">🔊 Sound: MAX</button>
       <div class="counter-box">
         <div style="font-size: 0.65rem;">DEFECT COUNT</div>
         <div id="defectCount" class="counter-val">0</div>
@@ -75,45 +75,58 @@
   <div class="grid">
     <!-- Camera Feed -->
     <div class="card">
-      <h2>Live High-Speed Feed</h2>
+      <h2>Live Line Camera</h2>
       <video id="webcam" autoplay playsinline muted></video>
       
       <div class="controls">
         <button onclick="startCamera('environment')">Rear Camera</button>
         <button onclick="startCamera('user')">Front Camera</button>
-        <button id="toggleScanBtn" onclick="toggleScanning()" style="background: var(--success);">Start Inspection</button>
+        <button id="toggleScanBtn" onclick="toggleScanning()" style="background: var(--success);">Start Line Inspection</button>
       </div>
 
       <div class="slider-group">
-        <label>Defect Tolerance:</label>
-        <input type="range" id="sensitivity" min="5" max="40" value="18">
-        <span id="sensVal">18%</span>
+        <label>Product Sensitivity (Defect):</label>
+        <input type="range" id="sensitivity" min="5" max="40" value="15">
+        <span id="sensVal">15%</span>
       </div>
 
       <div class="slider-group">
-        <label>Presence Threshold (Empty Belt):</label>
-        <input type="range" id="presenceSens" min="5" max="40" value="12">
-        <span id="presenceVal">12%</span>
+        <label>Object Trigger (Belt Filter):</label>
+        <input type="range" id="presenceSens" min="3" max="30" value="8">
+        <span id="presenceVal">8%</span>
       </div>
 
       <div id="liveStatus" class="status-badge status-standby">STATUS: STANDBY</div>
     </div>
 
-    <!-- Reference Frame -->
+    <!-- Reference Standards -->
     <div class="card">
-      <h2>Golden Reference Standard</h2>
-      <canvas id="refCanvas" width="160" height="160"></canvas>
+      <h2>Reference Calibration</h2>
       
-      <div class="controls">
-        <label class="file-label" for="fileInput">Upload Reference Image</label>
-        <input type="file" id="fileInput" accept="image/*" onchange="loadReferenceFromFile(event)">
-        <button onclick="captureReferenceFromCamera()" style="background: #475569;">Set Current Frame as Ref</button>
+      <div style="display: flex; gap: 8px;">
+        <div style="flex: 1; text-align: center;">
+          <p style="font-size: 0.7rem; margin-bottom: 4px; color: var(--accent);">Target Product</p>
+          <canvas id="refCanvas" width="120" height="120"></canvas>
+        </div>
+        <div style="flex: 1; text-align: center;">
+          <p style="font-size: 0.7rem; margin-bottom: 4px; color: var(--text-muted);">Empty Belt</p>
+          <canvas id="beltCanvas" width="120" height="120"></canvas>
+        </div>
       </div>
-      <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">Upload or capture the target product. Empty belts will be automatically ignored.</p>
+      
+      <div class="controls" style="margin-top: 10px;">
+        <button onclick="captureTargetFromCamera()" style="background: var(--accent);">1. Set Target Product</button>
+        <button onclick="captureBeltFromCamera()" style="background: #475569;">2. Set Empty Belt</button>
+        <label class="file-label" for="fileInput">Upload Product Image</label>
+        <input type="file" id="fileInput" accept="image/*" onchange="loadReferenceFromFile(event)">
+      </div>
+      <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">
+        *Important: Point camera at empty running belt and click "Set Empty Belt" so moving belt texture is ignored.
+      </p>
     </div>
   </div>
 
-  <!-- Audit Log -->
+  <!-- Defect Log -->
   <div class="card" style="margin-top: 12px;">
     <h2>Defect Audit Log</h2>
     <div id="logList" class="log-list">
@@ -121,12 +134,14 @@
     </div>
   </div>
 
-  <canvas id="procCanvas" width="160" height="160" style="display:none;"></canvas>
+  <canvas id="procCanvas" width="120" height="120" style="display:none;"></canvas>
 
   <script>
     const video = document.getElementById('webcam');
     const refCanvas = document.getElementById('refCanvas');
     const refCtx = refCanvas.getContext('2d');
+    const beltCanvas = document.getElementById('beltCanvas');
+    const beltCtx = beltCanvas.getContext('2d');
     const procCanvas = document.getElementById('procCanvas');
     const procCtx = procCanvas.getContext('2d');
     
@@ -141,35 +156,43 @@
 
     let isScanning = false;
     let defectCount = 0;
-    let referenceImageData = null;
-    let cooldown = false;
+    let refImageData = null;
+    let beltImageData = null;
+    
+    let isProductInZone = false;
     let isMuted = false;
     let animationFrameId = null;
 
-    // Web Audio Synthesizer (No external mp3 dependencies)
+    // Loud High-Decibel Web Audio Industrial Alarm
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    function triggerAlarmSound() {
+    function triggerHighDecibelAlarm() {
       if (isMuted) return;
       if (audioCtx.state === 'suspended') audioCtx.resume();
       
+      const now = audioCtx.currentTime;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
+
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // High pitch A5 alert tone
-      gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
       
+      // Dual-frequency siren effect (1200 Hz down to 600 Hz)
+      osc.frequency.setValueAtTime(1200, now);
+      osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+
+      gain.gain.setValueAtTime(1.0, now); // Max gain level
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-      
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.3);
+
+      osc.start(now);
+      osc.stop(now + 0.15);
     }
 
     function toggleMute() {
       isMuted = !isMuted;
-      muteBtn.innerText = isMuted ? "🔇 Sound: OFF" : "🔊 Sound: ON";
+      muteBtn.innerText = isMuted ? "🔇 Sound: OFF" : "🔊 Sound: MAX";
       muteBtn.style.background = isMuted ? "var(--danger)" : "#475569";
     }
 
@@ -185,14 +208,20 @@
         });
         video.srcObject = stream;
       } catch (err) {
-        alert("Camera access error: " + err.message);
+        alert("Camera error: " + err.message);
       }
     }
 
-    function captureReferenceFromCamera() {
+    function captureTargetFromCamera() {
       refCtx.drawImage(video, 0, 0, refCanvas.width, refCanvas.height);
-      referenceImageData = refCtx.getImageData(0, 0, refCanvas.width, refCanvas.height);
-      alert("Golden Reference Target Updated.");
+      refImageData = refCtx.getImageData(0, 0, refCanvas.width, refCanvas.height);
+      alert("Target Product Reference Saved.");
+    }
+
+    function captureBeltFromCamera() {
+      beltCtx.drawImage(video, 0, 0, beltCanvas.width, beltCanvas.height);
+      beltImageData = beltCtx.getImageData(0, 0, beltCanvas.width, beltCanvas.height);
+      alert("Empty Belt Reference Saved.");
     }
 
     function loadReferenceFromFile(e) {
@@ -202,14 +231,14 @@
       img.onload = () => {
         refCtx.clearRect(0, 0, refCanvas.width, refCanvas.height);
         refCtx.drawImage(img, 0, 0, refCanvas.width, refCanvas.height);
-        referenceImageData = refCtx.getImageData(0, 0, refCanvas.width, refCanvas.height);
+        refImageData = refCtx.getImageData(0, 0, refCanvas.width, refCanvas.height);
       };
       img.src = URL.createObjectURL(file);
     }
 
     function toggleScanning() {
-      if (!referenceImageData) {
-        alert("Upload or capture a Golden Reference Image first!");
+      if (!refImageData) {
+        alert("Set Target Product Reference first!");
         return;
       }
       isScanning = !isScanning;
@@ -220,7 +249,7 @@
         btn.style.background = "var(--danger)";
         scanLoop();
       } else {
-        btn.innerText = "Start Inspection";
+        btn.innerText = "Start Line Inspection";
         btn.style.background = "var(--success)";
         cancelAnimationFrame(animationFrameId);
         liveStatus.className = "status-badge status-standby";
@@ -228,7 +257,7 @@
       }
     }
 
-    // High-Speed Inspection Loop running at 60FPS
+    // High-speed 60FPS loop with edge-trigger logic for fast moving units
     function scanLoop() {
       if (!isScanning) return;
       
@@ -236,47 +265,61 @@
         procCtx.drawImage(video, 0, 0, procCanvas.width, procCanvas.height);
         const currentData = procCtx.getImageData(0, 0, procCanvas.width, procCanvas.height);
         
-        const diffScore = calculatePixelDiff(referenceImageData.data, currentData.data);
-        const defectThreshold = parseFloat(sensitivityInput.value);
-        const presenceThreshold = parseFloat(presenceInput.value);
+        // 1. Check if an object is breaking the empty belt baseline
+        let objectPresenceScore = 0;
+        if (beltImageData) {
+          objectPresenceScore = calculatePixelDiff(beltImageData.data, currentData.data);
+        } else {
+          objectPresenceScore = 20; // Default trigger if belt reference not set
+        }
 
-        // Filter out empty conveyor belt: If frame difference is extremely high/empty, treat as no product
-        if (diffScore > (100 - presenceThreshold)) {
+        const objectTrigger = parseFloat(presenceInput.value);
+
+        if (objectPresenceScore < objectTrigger) {
+          // Zone is clear / Belt empty
           liveStatus.className = "status-badge status-empty";
-          liveStatus.innerText = "EMPTY BELT / NO PRODUCT";
-        } 
-        else if (diffScore > defectThreshold) {
-          liveStatus.className = "status-badge status-fail";
-          liveStatus.innerText = `DEFECT DETECTED (${diffScore.toFixed(1)}% Diff)`;
-
-          if (!cooldown) {
-            triggerAlarmSound();
-            logDefect(diffScore);
-            cooldown = true;
-            setTimeout(() => { cooldown = false; }, 1800); // Debounce time for fast moving units
-          }
+          liveStatus.innerText = "BELT CLEAR";
+          isProductInZone = false; // Reset zone state for next item
         } 
         else {
-          liveStatus.className = "status-badge status-pass";
-          liveStatus.innerText = `PASS MATCH (${diffScore.toFixed(1)}% Diff)`;
+          // Object detected in inspection window
+          const defectScore = calculatePixelDiff(refImageData.data, currentData.data);
+          const defectThreshold = parseFloat(sensitivityInput.value);
+
+          if (defectScore > defectThreshold) {
+            liveStatus.className = "status-badge status-fail";
+            liveStatus.innerText = `DEFECT DETECTED (${defectScore.toFixed(1)}% Diff)`;
+
+            // Edge trigger: Only fire ONCE per product entry into inspection window
+            if (!isProductInZone) {
+              triggerHighDecibelAlarm();
+              logDefect(defectScore);
+              isProductInZone = true;
+            }
+          } else {
+            liveStatus.className = "status-badge status-pass";
+            liveStatus.innerText = `PASS (${defectScore.toFixed(1)}% Diff)`;
+            isProductInZone = true;
+          }
         }
       }
 
       animationFrameId = requestAnimationFrame(scanLoop);
     }
 
+    // Downsampled differential matrix calculation (<5ms execution time)
     function calculatePixelDiff(ref, current) {
       let totalDiff = 0;
       const length = ref.length;
 
-      for (let i = 0; i < length; i += 8) { // Downsampled pixel step for ultra-fast processing
+      for (let i = 0; i < length; i += 16) { 
         const rDiff = Math.abs(ref[i] - current[i]);
         const gDiff = Math.abs(ref[i+1] - current[i+1]);
         const bDiff = Math.abs(ref[i+2] - current[i+2]);
         totalDiff += (rDiff + gDiff + bDiff) / 3;
       }
 
-      const sampledPixels = length / 8;
+      const sampledPixels = length / 16;
       return (totalDiff / (sampledPixels * 255)) * 100;
     }
 
