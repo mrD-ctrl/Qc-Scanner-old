@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Masked ROI Industrial Inspector</title>
+  <title>Line Inspector Engine</title>
   <style>
     :root {
-      --bg-color: #0f172a;
-      --card-bg: #1e293b;
+      --bg-color: #0b0f19;
+      --card-bg: #151d30;
       --accent: #3b82f6;
       --danger: #ef4444;
       --success: #10b981;
@@ -15,59 +15,60 @@
       --text: #f8fafc;
       --text-muted: #94a3b8;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
     body { background-color: var(--bg-color); color: var(--text); padding: 12px; }
     
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #334155; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #1e293b; }
     h1 { font-size: 1.1rem; }
 
-    .header-actions { display: flex; align-items: center; gap: 12px; }
-    .counter-box { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); padding: 6px 12px; border-radius: 8px; text-align: center; }
-    .counter-val { font-size: 1.4rem; font-weight: bold; color: var(--danger); }
+    .counter-box { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); padding: 4px 10px; border-radius: 8px; text-align: center; }
+    .counter-val { font-size: 1.2rem; font-weight: bold; color: var(--danger); }
     
     .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
     @media(min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
 
-    .card { background: var(--card-bg); border-radius: 12px; padding: 12px; border: 1px solid #334155; }
-    .card h2 { font-size: 0.95rem; margin-bottom: 8px; color: var(--accent); }
+    .card { background: var(--card-bg); border-radius: 12px; padding: 12px; border: 1px solid #1e293b; }
+    .card h2 { font-size: 0.9rem; margin-bottom: 8px; color: var(--accent); }
 
-    .video-container { position: relative; width: 100%; height: 220px; background: #000; border-radius: 8px; overflow: hidden; }
+    .video-container { position: relative; width: 100%; height: 280px; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
     video { width: 100%; height: 100%; object-fit: contain; }
     
+    /* Strict Centered Inspection Window */
     .roi-overlay {
       position: absolute;
-      top: 20%; left: 20%; width: 60%; height: 60%;
+      width: 60%;
+      height: 60%;
       border: 2px dashed #f59e0b;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65);
       pointer-events: none;
       border-radius: 4px;
       display: flex;
       align-items: flex-start;
       justify-content: center;
     }
-    .roi-label { background: #f59e0b; color: #000; font-size: 0.6rem; font-weight: bold; padding: 2px 4px; }
+    .roi-label { background: #f59e0b; color: #000; font-size: 0.65rem; font-weight: bold; padding: 2px 6px; }
 
     .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    button, label.btn-upload { background: var(--accent); color: white; border: none; padding: 7px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: bold; cursor: pointer; display: inline-block; text-align: center; }
+    button, label.btn-upload { background: var(--accent); color: white; border: none; padding: 8px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; cursor: pointer; display: inline-block; text-align: center; }
     input[type="file"] { display: none; }
     
-    .status-badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 6px; width: 100%; text-align: center; }
+    .status-badge { display: inline-block; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 8px; width: 100%; text-align: center; }
     .status-pass { background: var(--success); }
     .status-fail { background: var(--danger); }
-    .status-empty { background: #334155; color: var(--text-muted); }
+    .status-empty { background: #1e293b; color: var(--text-muted); }
     .status-standby { background: var(--warning); color: #000; }
 
     .slider-group { margin-top: 8px; font-size: 0.75rem; display: flex; align-items: center; gap: 8px; }
     .slider-group input { flex-grow: 1; }
 
-    .sample-strip { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; padding-bottom: 4px; min-height: 52px; align-items: center; }
-    .sample-thumb-good { width: 46px; height: 46px; border-radius: 4px; border: 2px solid var(--success); object-fit: cover; }
-    .sample-thumb-bad { width: 46px; height: 46px; border-radius: 4px; border: 2px solid var(--danger); object-fit: cover; }
+    .sample-strip { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; padding-bottom: 4px; min-height: 50px; align-items: center; }
+    .sample-thumb-good { width: 44px; height: 44px; border-radius: 4px; border: 2px solid var(--success); object-fit: cover; }
+    .sample-thumb-bad { width: 44px; height: 44px; border-radius: 4px; border: 2px solid var(--danger); object-fit: cover; }
 
-    .log-list { max-height: 200px; overflow-y: auto; margin-top: 8px; }
-    .log-item { display: flex; gap: 12px; background: #090d16; padding: 8px; border-radius: 6px; margin-bottom: 6px; border-left: 4px solid var(--danger); align-items: center; }
-    .log-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 4px; }
-    .log-info { font-size: 0.78rem; }
+    .log-list { max-height: 180px; overflow-y: auto; margin-top: 8px; }
+    .log-item { display: flex; gap: 10px; background: #090d16; padding: 6px; border-radius: 6px; margin-bottom: 4px; border-left: 4px solid var(--danger); align-items: center; }
+    .log-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
+    .log-info { font-size: 0.75rem; }
   </style>
 </head>
 <body>
@@ -75,24 +76,21 @@
   <header>
     <div>
       <h1>Masked ROI Inspector</h1>
-      <p style="font-size: 0.7rem; color: var(--text-muted);">Direct uploads & background subtraction engine</p>
     </div>
     
-    <div class="header-actions">
-      <button id="muteBtn" onclick="toggleMute()" style="background: #475569;">🔊 Alarm: MAX</button>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button id="muteBtn" onclick="toggleMute()" style="background: #334155;">🔊 Alarm</button>
       <div class="counter-box">
-        <div style="font-size: 0.65rem;">DEFECT COUNT</div>
+        <div style="font-size: 0.6rem;">DEFECTS</div>
         <div id="defectCount" class="counter-val">0</div>
-        <button onclick="resetCount()" style="background: var(--danger); padding: 2px 6px; font-size: 0.7rem;">Reset</button>
       </div>
     </div>
   </header>
 
   <div class="grid">
-    <!-- Camera View & Controls -->
     <div class="card">
       <h2>Live Line Camera</h2>
-      <div class="video-container">
+      <div class="video-container" id="stage">
         <video id="webcam" autoplay playsinline muted></video>
         <div class="roi-overlay">
           <span class="roi-label">INSPECTION ROI</span>
@@ -112,69 +110,57 @@
       </div>
 
       <div class="slider-group">
-        <label>Sensitivity:</label>
-        <input type="range" id="sensitivity" min="5" max="50" value="20">
-        <span id="sensVal">20%</span>
+        <label>Sensitivity Threshold:</label>
+        <input type="range" id="sensitivity" min="5" max="50" value="15">
+        <span id="sensVal">15%</span>
       </div>
 
       <div class="slider-group">
-        <label>Belt Trigger:</label>
-        <input type="range" id="presenceSens" min="3" max="30" value="10">
-        <span id="presenceVal">10%</span>
+        <label>Belt Trigger Threshold:</label>
+        <input type="range" id="presenceSens" min="5" max="50" value="20">
+        <span id="presenceVal">20%</span>
       </div>
 
       <div id="liveStatus" class="status-badge status-standby">STATUS: STANDBY</div>
     </div>
 
-    <!-- Reference & Bank Management -->
     <div class="card">
-      <h2>Reference Samples & Uploads</h2>
+      <h2>Reference Samples & Calibration</h2>
       
-      <!-- Belt Baseline Section -->
-      <div style="margin-bottom: 8px;">
-        <strong style="font-size: 0.78rem; color: var(--text-muted);">Empty Belt Baseline</strong>
+      <div style="margin-bottom: 6px;">
+        <strong style="font-size: 0.75rem; color: var(--text-muted);">1. Calibration (Belt Baseline)</strong>
         <div class="controls" style="margin-top: 4px;">
-          <button onclick="captureBeltFromCamera()" style="background: #475569;">Snap from Cam</button>
-          <label class="btn-upload" style="background: #475569;">
-            📁 Upload Belt Pic
-            <input type="file" accept="image/*" onchange="uploadBeltImage(event)">
-          </label>
+          <button onclick="captureBeltFromCamera()" style="background: #334155;">Calibrate Empty Belt</button>
         </div>
       </div>
 
-      <hr style="border: 0; border-top: 1px solid #334155; margin: 8px 0;">
+      <hr style="border: 0; border-top: 1px solid #1e293b; margin: 6px 0;">
 
-      <!-- Good Target Bank -->
-      <div style="margin-bottom: 8px;">
-        <strong style="font-size: 0.78rem; color: var(--success);">Good Target Bank (<span id="goodCount">0</span>)</strong>
-        <div id="goodStrip" class="sample-strip">
-          <span style="font-size:0.7rem; color:var(--text-muted);">No good samples added</span>
-        </div>
+      <div style="margin-bottom: 6px;">
+        <strong style="font-size: 0.75rem; color: var(--success);">2. Good Target Bank (<span id="goodCount">0</span>)</strong>
+        <div id="goodStrip" class="sample-strip"></div>
         <div class="controls" style="margin-top: 4px;">
           <button onclick="captureGoodSample()" style="background: var(--success);">+ Snap Good</button>
           <label class="btn-upload" style="background: var(--success);">
             📁 Upload Good Pic
             <input type="file" accept="image/*" multiple onchange="uploadGoodImage(event)">
           </label>
-          <button onclick="clearGoodSamples()" style="background: #475569;">Clear</button>
+          <button onclick="clearGoodSamples()" style="background: #334155;">Clear</button>
         </div>
       </div>
 
-      <hr style="border: 0; border-top: 1px solid #334155; margin: 8px 0;">
+      <hr style="border: 0; border-top: 1px solid #1e293b; margin: 6px 0;">
 
-      <!-- Reject Defect Bank -->
       <div>
-        <strong style="font-size: 0.78rem; color: var(--danger);">Known Rejects Bank (<span id="badCount">0</span>)</strong>
-        <div id="badStrip" class="sample-strip">
-          <span style="font-size:0.7rem; color:var(--text-muted);">No defect samples added</span>
-        </div>
+        <strong style="font-size: 0.75rem; color: var(--danger);">3. Known Rejects Bank (<span id="badCount">0</span>)</strong>
+        <div id="badStrip" class="sample-strip"></div>
         <div class="controls" style="margin-top: 4px;">
           <button onclick="captureBadSample()" style="background: var(--danger);">+ Snap Reject</button>
           <label class="btn-upload" style="background: var(--danger);">
             📁 Upload Reject Pic
             <input type="file" accept="image/*" multiple onchange="uploadBadImage(event)">
           </label>
-          <button onclick="clearBadSamples()" style="background: #475569;">Clear</button>
+          <button onclick="clearBadSamples()" style="background: #334155;">Clear</button>
         </div>
       </div>
     </div>
@@ -182,12 +168,10 @@
 
   <div class="card" style="margin-top: 12px;">
     <h2>Defect Audit Log</h2>
-    <div id="logList" class="log-list">
-      <div style="font-size: 0.75rem; color: var(--text-muted);">No non-matching items recorded.</div>
-    </div>
+    <div id="logList" class="log-list"></div>
   </div>
 
-  <canvas id="procCanvas" width="100" height="100" style="display:none;"></canvas>
+  <canvas id="procCanvas" width="128" height="128" style="display:none;"></canvas>
 
   <script>
     const video = document.getElementById('webcam');
@@ -205,11 +189,6 @@
     const logList = document.getElementById('logList');
     const muteBtn = document.getElementById('muteBtn');
     
-    const goodStrip = document.getElementById('goodStrip');
-    const goodCountDisplay = document.getElementById('goodCount');
-    const badStrip = document.getElementById('badStrip');
-    const badCountDisplay = document.getElementById('badCount');
-
     let videoTrack = null;
     let isScanning = false;
     let defectCount = 0;
@@ -218,41 +197,32 @@
     let goodThumbnails = [];
     let badHistograms = [];
     let badThumbnails = [];
-    let beltColorRange = null; 
+    let beltColor = { r: 0, g: 100, b: 200 }; // Default baseline blue
     
-    let isProductInZone = false;
     let hasLoggedCurrentDefect = false;
     let isMuted = false;
     let animationFrameId = null;
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    function triggerHighDecibelAlarm() {
+    function triggerAlarm() {
       if (isMuted) return;
       if (audioCtx.state === 'suspended') audioCtx.resume();
-      
-      const now = audioCtx.currentTime;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(1400, now);
-      osc.frequency.exponentialRampToValueAtTime(700, now + 0.18);
-
-      gain.gain.setValueAtTime(1.0, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
-
+      osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.18);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.2);
     }
 
     function toggleMute() {
       isMuted = !isMuted;
-      muteBtn.innerText = isMuted ? "🔇 Alarm: OFF" : "🔊 Alarm: MAX";
-      muteBtn.style.background = isMuted ? "var(--danger)" : "#475569";
+      muteBtn.innerText = isMuted ? "🔇 Muted" : "🔊 Alarm";
     }
 
     sensitivityInput.oninput = () => sensValDisplay.innerText = `${sensitivityInput.value}%`;
@@ -262,96 +232,60 @@
       if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facingMode, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 60 } },
+          video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false
         });
         video.srcObject = stream;
         videoTrack = stream.getVideoTracks()[0];
-
-        const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
-        if (capabilities.zoom) {
-          zoomRange.min = capabilities.zoom.min;
-          zoomRange.max = capabilities.zoom.max;
-          zoomRange.step = capabilities.zoom.step;
-          zoomRange.value = videoTrack.getSettings().zoom || 1;
-          zoomValDisplay.innerText = `${parseFloat(zoomRange.value).toFixed(1)}x`;
-        }
       } catch (err) {
-        alert("Camera error: " + err.message);
+        alert("Camera access error: " + err.message);
       }
     }
 
-    async function applyZoom(val) {
+    function applyZoom(val) {
       zoomValDisplay.innerText = `${parseFloat(val).toFixed(1)}x`;
-      if (videoTrack && videoTrack.getCapabilities && videoTrack.getCapabilities().zoom) {
-        try {
-          await videoTrack.applyConstraints({ advanced: [{ zoom: parseFloat(val) }] });
-        } catch (e) { console.log(e); }
-      } else {
-        video.style.transform = `scale(${val})`;
-        video.style.transformOrigin = "center center";
-      }
+      video.style.transform = `scale(${val})`;
+      video.style.transformOrigin = "center center";
     }
 
-    // Extract central 60% ROI from Live Video or Loaded Image
+    // Precise ROI extraction aligned with orange screen box
     function getROICanvas(source) {
-      const w = source.videoWidth || source.width || 640;
-      const h = source.videoHeight || source.height || 480;
+      const sw = source.videoWidth || source.width;
+      const sh = source.videoHeight || source.height;
+      
+      // Crop central 60% x 60%
+      const sx = sw * 0.20;
+      const sy = sh * 0.20;
+      const sWidth = sw * 0.60;
+      const sHeight = sh * 0.60;
 
-      const sx = w * 0.20;
-      const sy = h * 0.20;
-      const sWidth = w * 0.60;
-      const sHeight = h * 0.60;
-
-      procCtx.drawImage(source, sx, sy, sWidth, sHeight, 0, 0, 100, 100);
-      return procCtx.getImageData(0, 0, 100, 100);
+      procCtx.drawImage(source, sx, sy, sWidth, sHeight, 0, 0, 128, 128);
+      return procCtx.getImageData(0, 0, 128, 128);
     }
 
-    // Background Masking: Evaluates pixels strictly ignoring empty belt colors
-    function computeMaskedHistogram(imageData) {
+    function processFrame(imageData) {
       const hist = new Float32Array(16).fill(0);
       const data = imageData.data;
-      let objectPixelCount = 0;
+      let nonBeltPixels = 0;
 
       for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i+1];
-        const b = data[i+2];
+        const r = data[i], g = data[i+1], b = data[i+2];
 
-        // Mask out belt if baseline exists
-        if (beltColorRange) {
-          const isBeltPixel = Math.abs(r - beltColorRange.r) < 35 &&
-                              Math.abs(g - beltColorRange.g) < 35 &&
-                              Math.abs(b - beltColorRange.b) < 35;
-          if (isBeltPixel) continue; // Skip belt background
+        // Euclidean distance check against calibrated belt baseline
+        const dist = Math.sqrt((r-beltColor.r)**2 + (g-beltColor.g)**2 + (b-beltColor.b)**2);
+        
+        if (dist > 50) { 
+          nonBeltPixels++;
+          const brightness = (r + g + b) / 3;
+          const bin = Math.floor((brightness / 256) * 16);
+          hist[bin]++;
         }
-
-        objectPixelCount++;
-
-        // Convert RGB to Hue Bin
-        const nr = r / 255, ng = g / 255, nb = b / 255;
-        const max = Math.max(nr, ng, nb), min = Math.min(nr, ng, nb);
-        const delta = max - min;
-
-        let h = 0;
-        if (delta !== 0) {
-          if (max === nr) h = ((ng - nb) / delta) % 6;
-          else if (max === ng) h = (nb - nr) / delta + 2;
-          else h = (nr - ng) / delta + 4;
-          h = Math.round(h * 60);
-          if (h < 0) h += 360;
-        }
-
-        const bin = Math.floor((h / 360) * 16) % 16;
-        hist[bin]++;
       }
 
-      // Normalize over valid non-belt pixels
-      if (objectPixelCount > 0) {
-        for (let i = 0; i < 16; i++) hist[i] /= objectPixelCount;
-      }
-      
-      return { hist: hist, nonBeltRatio: objectPixelCount / (data.length / 4) };
+      const totalNonBelt = nonBeltPixels || 1;
+      for (let i = 0; i < 16; i++) hist[i] /= totalNonBelt;
+
+      return { hist, coverage: nonBeltPixels / (data.length / 4) };
     }
 
     function compareHistograms(h1, h2) {
@@ -360,52 +294,28 @@
       return (diff / 2) * 100;
     }
 
-    // Belt Baseline Setup
     function captureBeltFromCamera() {
-      const roiData = getROICanvas(video);
-      setBeltBaseline(roiData);
-      alert("Empty Belt Baseline Captured!");
-    }
-
-    function uploadBeltImage(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const img = new Image();
-      img.onload = () => {
-        const roiData = getROICanvas(img);
-        setBeltBaseline(roiData);
-        alert("Empty Belt File Baseline Loaded!");
-      };
-      img.src = URL.createObjectURL(file);
-    }
-
-    function setBeltBaseline(roiData) {
-      const d = roiData.data;
-      let totalR = 0, totalG = 0, totalB = 0;
-      const count = d.length / 4;
-      for (let i = 0; i < d.length; i += 4) {
-        totalR += d[i]; totalG += d[i+1]; totalB += d[i+2];
+      const data = getROICanvas(video).data;
+      let r = 0, g = 0, b = 0, count = data.length / 4;
+      for (let i = 0; i < data.length; i += 4) {
+        r += data[i]; g += data[i+1]; b += data[i+2];
       }
-      beltColorRange = { r: totalR / count, g: totalG / count, b: totalB / count };
+      beltColor = { r: r/count, g: g/count, b: b/count };
+      alert("Belt baseline calibrated successfully!");
     }
 
-    // Good Target Handlers
     function captureGoodSample() {
       const roiData = getROICanvas(video);
-      const res = computeMaskedHistogram(roiData);
-      goodHistograms.push(res.hist);
+      goodHistograms.push(processFrame(roiData).hist);
       goodThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
       renderStrips();
     }
 
     function uploadGoodImage(e) {
-      const files = Array.from(e.target.files);
-      files.forEach(file => {
+      Array.from(e.target.files).forEach(file => {
         const img = new Image();
         img.onload = () => {
-          const roiData = getROICanvas(img);
-          const res = computeMaskedHistogram(roiData);
-          goodHistograms.push(res.hist);
+          goodHistograms.push(processFrame(getROICanvas(img)).hist);
           goodThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
           renderStrips();
         };
@@ -413,23 +323,18 @@
       });
     }
 
-    // Bad Target Handlers
     function captureBadSample() {
       const roiData = getROICanvas(video);
-      const res = computeMaskedHistogram(roiData);
-      badHistograms.push(res.hist);
+      badHistograms.push(processFrame(roiData).hist);
       badThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
       renderStrips();
     }
 
     function uploadBadImage(e) {
-      const files = Array.from(e.target.files);
-      files.forEach(file => {
+      Array.from(e.target.files).forEach(file => {
         const img = new Image();
         img.onload = () => {
-          const roiData = getROICanvas(img);
-          const res = computeMaskedHistogram(roiData);
-          badHistograms.push(res.hist);
+          badHistograms.push(processFrame(getROICanvas(img)).hist);
           badThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
           renderStrips();
         };
@@ -441,31 +346,32 @@
     function clearBadSamples() { badHistograms = []; badThumbnails = []; renderStrips(); }
 
     function renderStrips() {
-      goodStrip.innerHTML = goodThumbnails.length === 0 ? '<span style="font-size:0.7rem; color:var(--text-muted);">No good samples added</span>' : '';
+      const gContainer = document.getElementById('goodStrip');
+      gContainer.innerHTML = '';
       goodThumbnails.forEach(url => {
         const img = document.createElement('img');
         img.src = url; img.className = 'sample-thumb-good';
-        goodStrip.appendChild(img);
+        gContainer.appendChild(img);
       });
-      goodCountDisplay.innerText = goodThumbnails.length;
+      document.getElementById('goodCount').innerText = goodThumbnails.length;
 
-      badStrip.innerHTML = badThumbnails.length === 0 ? '<span style="font-size:0.7rem; color:var(--text-muted);">No defect samples added</span>' : '';
+      const bContainer = document.getElementById('badStrip');
+      bContainer.innerHTML = '';
       badThumbnails.forEach(url => {
         const img = document.createElement('img');
         img.src = url; img.className = 'sample-thumb-bad';
-        badStrip.appendChild(img);
+        bContainer.appendChild(img);
       });
-      badCountDisplay.innerText = badThumbnails.length;
+      document.getElementById('badCount').innerText = badThumbnails.length;
     }
 
     function toggleScanning() {
       if (goodHistograms.length === 0) {
-        alert("Upload or Snap at least ONE Good Target Sample first!");
+        alert("Please add at least ONE Good Target Sample first.");
         return;
       }
       isScanning = !isScanning;
       const btn = document.getElementById('toggleScanBtn');
-      
       if (isScanning) {
         btn.innerText = "Stop Inspection";
         btn.style.background = "var(--danger)";
@@ -484,52 +390,34 @@
       
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         const roiData = getROICanvas(video);
-        const { hist: currentHist, nonBeltRatio } = computeMaskedHistogram(roiData);
+        const { hist: currentHist, coverage } = processFrame(roiData);
         
-        const beltTrigger = parseFloat(presenceInput.value) / 100;
+        const triggerThreshold = parseFloat(presenceInput.value) / 100;
 
-        // Check if object is inside inspection zone
-        if (nonBeltRatio < beltTrigger) {
+        if (coverage < triggerThreshold) {
           liveStatus.className = "status-badge status-empty";
           liveStatus.innerText = "BELT CLEAR";
-          isProductInZone = false;
           hasLoggedCurrentDefect = false;
-        } 
-        else {
-          // Compute difference to Good Target Histograms
-          let minGoodDiff = 999;
-          for (let i = 0; i < goodHistograms.length; i++) {
-            const diff = compareHistograms(goodHistograms[i], currentHist);
-            if (diff < minGoodDiff) minGoodDiff = diff;
-          }
+        } else {
+          let minGoodDiff = Math.min(...goodHistograms.map(h => compareHistograms(h, currentHist)));
+          let minBadDiff = badHistograms.length > 0 ? Math.min(...badHistograms.map(h => compareHistograms(h, currentHist))) : 999;
 
-          // Compute difference to Bad Defect Histograms
-          let minBadDiff = 999;
-          for (let i = 0; i < badHistograms.length; i++) {
-            const diff = compareHistograms(badHistograms[i], currentHist);
-            if (diff < minBadDiff) minBadDiff = diff;
-          }
+          const defectLimit = parseFloat(sensitivityInput.value);
+          const isRejectMatch = minBadDiff < minGoodDiff && minBadDiff < defectLimit;
+          const isDeviation = minGoodDiff > defectLimit;
 
-          const defectThreshold = parseFloat(sensitivityInput.value);
-          
-          const isRejectMatch = (badHistograms.length > 0) && (minBadDiff < minGoodDiff) && (minBadDiff < defectThreshold);
-          const isGoodDeviation = minGoodDiff > defectThreshold;
-
-          if (isGoodDeviation || isRejectMatch) {
+          if (isDeviation || isRejectMatch) {
             liveStatus.className = "status-badge status-fail";
-            const reason = isRejectMatch ? "KNOWN REJECT MATCH" : `${minGoodDiff.toFixed(1)}% Object Shift`;
-            liveStatus.innerText = `DEFECT DETECTED (${reason})`;
+            liveStatus.innerText = `DEFECT DETECTED (${minGoodDiff.toFixed(1)}% Shift)`;
 
             if (!hasLoggedCurrentDefect) {
-              triggerHighDecibelAlarm();
-              logDefect(minGoodDiff, isRejectMatch);
+              triggerAlarm();
+              logDefect(minGoodDiff);
               hasLoggedCurrentDefect = true;
-              isProductInZone = true;
             }
           } else {
             liveStatus.className = "status-badge status-pass";
             liveStatus.innerText = `PASS (${minGoodDiff.toFixed(1)}% Match)`;
-            isProductInZone = true;
           }
         }
       }
@@ -537,31 +425,21 @@
       animationFrameId = requestAnimationFrame(scanLoop);
     }
 
-    function logDefect(score, isRejectMatch) {
+    function logDefect(score) {
       defectCount++;
       document.getElementById('defectCount').innerText = defectCount;
-
-      const timeStr = new Date().toLocaleTimeString();
       const snapshotUrl = procCanvas.toDataURL('image/jpeg', 0.8);
-
-      if (defectCount === 1) logList.innerHTML = '';
 
       const logItem = document.createElement('div');
       logItem.className = 'log-item';
       logItem.innerHTML = `
-        <img src="${snapshotUrl}" alt="Defect Snapshot"/>
+        <img src="${snapshotUrl}"/>
         <div class="log-info">
-          <strong>Defect #${defectCount}</strong> - ${timeStr}<br/>
-          <span style="color:var(--danger)">${isRejectMatch ? 'Matched Uploaded Reject Pic' : 'Object Shift: ' + score.toFixed(1) + '%'}</span>
+          <strong>Defect #${defectCount}</strong> - ${new Date().toLocaleTimeString()}<br/>
+          <span style="color:var(--danger)">Shift: ${score.toFixed(1)}%</span>
         </div>
       `;
       logList.insertBefore(logItem, logList.firstChild);
-    }
-
-    function resetCount() {
-      defectCount = 0;
-      document.getElementById('defectCount').innerText = '0';
-      logList.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted);">No non-matching items recorded.</div>';
     }
 
     window.onload = () => startCamera('environment');
