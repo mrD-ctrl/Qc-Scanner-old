@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Universal Line Inspector — Normalized Model V4.1.1</title>
+  <title>Universal Line Inspector — Single-Scan V4.2</title>
   <style>
     :root {
       color-scheme: dark;
@@ -390,7 +390,7 @@
   <header>
     <div>
       <h1>Universal Line Inspector</h1>
-      <div class="helper">Normalized Model V4.1</div>
+      <div class="helper">Single-Scan V4.2</div>
     </div>
 
     <div class="top-actions">
@@ -518,6 +518,10 @@
 
       <details>
         <summary>Tracking & Back-to-Back Products</summary>
+        <p class="helper settings-note">
+          One physical object receives one inspection ID. A new ID is armed only
+          after a visible belt gap.
+        </p>
         <div class="settings-grid">
           <label>Track match distance
             <input id="cfgMatchDistance" type="number" min="30" max="180" value="105">
@@ -541,6 +545,14 @@
 
           <label>Maximum active tracks
             <input id="cfgMaxTracks" type="number" min="2" max="30" value="12">
+          </label>
+
+          <label>Clear gap frames before next product
+            <input id="cfgClearGapFrames" type="number" min="1" max="20" value="3">
+          </label>
+
+          <label>Merge nearby object fragments
+            <input id="cfgMergeDistance" type="number" min="0" max="80" value="22">
           </label>
         </div>
       </details>
@@ -571,6 +583,14 @@
 
           <label>PASS votes required
             <input id="cfgPassVotes" type="number" min="1" max="7" value="2">
+          </label>
+
+          <label>Minimum collected frames
+            <input id="cfgMinCollectedFrames" type="number" min="1" max="12" value="3">
+          </label>
+
+          <label>Maximum wait frames
+            <input id="cfgMaxWaitFrames" type="number" min="3" max="30" value="10">
           </label>
 
           <label>Upside-down veto margin
@@ -677,7 +697,7 @@
     </div>
 
     <p id="calibrationMessage" class="helper">
-      Capture belt samples first. GOOD and REJECT samples are automatically isolated, rotated, centred and scaled before the learned model is built.
+      Capture belt samples first. Each physical product is scanned once. The next product is armed only after a visible belt gap. Blurry and border-cut frames are ignored while the tracker waits for clearer views.
     </p>
   </section>
 
@@ -716,7 +736,11 @@ const DEFAULT_CONFIG = Object.freeze({
   modelMultiplier: 2.2,
   modelFloor: 8,
   modelCeiling: 28,
-  rotationNormalize: 1
+  rotationNormalize: 1,
+  clearGapFrames: 3,
+  mergeDistance: 22,
+  minCollectedFrames: 3,
+  maxWaitFrames: 10
 });
 
 let CONFIG = { ...DEFAULT_CONFIG };
@@ -764,6 +788,9 @@ let badModel = null;
 let nextTrackId = 1;
 const tracks = new Map();
 const recentLocks = [];
+let clearGapCounter = 0;
+let productGateArmed = true;
+
 let conveyorDirection = "down";
 
 
@@ -1339,6 +1366,84 @@ function components(mask) {
   return result.sort((a, b) => b.count - a.count).slice(0, 6);
 }
 
+
+function mergeNearbyComponents(boxes) {
+  const remaining = boxes.map(box => ({ ...box }));
+  const merged = [];
+
+  while (remaining.length) {
+    let current = remaining.shift();
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+
+      for (let i = remaining.length - 1; i >= 0; i--) {
+        const other = remaining[i];
+
+        const currentRight = current.x + current.width;
+        const currentBottom = current.y + current.height;
+        const otherRight = other.x + other.width;
+        const otherBottom = other.y + other.height;
+
+        const gapX = Math.max(
+          0,
+          Math.max(current.x, other.x) -
+          Math.min(currentRight, otherRight)
+        );
+
+        const gapY = Math.max(
+          0,
+          Math.max(current.y, other.y) -
+          Math.min(currentBottom, otherBottom)
+        );
+
+        const centreDistance = Math.hypot(
+          current.centreX - other.centreX,
+          current.centreY - other.centreY
+        );
+
+        const shouldMerge =
+          (gapX <= CONFIG.mergeDistance && gapY <= CONFIG.mergeDistance) ||
+          centreDistance <= CONFIG.mergeDistance * 1.8;
+
+        if (!shouldMerge) continue;
+
+        const minX = Math.min(current.x, other.x);
+        const minY = Math.min(current.y, other.y);
+        const maxX = Math.max(currentRight, otherRight);
+        const maxY = Math.max(currentBottom, otherBottom);
+
+        const totalCount = current.count + other.count;
+        current = {
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY,
+          count: totalCount,
+          fill: totalCount / Math.max(1, (maxX - minX) * (maxY - minY)),
+          centreX:
+            (current.centreX * current.count + other.centreX * other.count) /
+            totalCount,
+          centreY:
+            (current.centreY * current.count + other.centreY * other.count) /
+            totalCount,
+          angle:
+            (current.angle * current.count + other.angle * other.count) /
+            totalCount
+        };
+
+        remaining.splice(i, 1);
+        changed = true;
+      }
+    }
+
+    merged.push(current);
+  }
+
+  return merged.sort((a, b) => b.count - a.count);
+}
+
 function cropProduct(imageData, box, mask = null) {
   const sourceCanvas = document.createElement("canvas");
   sourceCanvas.width = PROCESS_W;
@@ -1474,18 +1579,33 @@ function touchesBorder(box) {
 
 function frameQuality(imageData, box) {
   const sharpness = simpleSharpness(imageData);
-  const borderPenalty = touchesBorder(box) ? 40 : 0;
-  const centreDistance = Math.abs(
-    movementCoordinate(box) / lineLength() -
-    (CONFIG.decisionStart + CONFIG.decisionEnd) / 2
-  );
-  const centreScore = Math.max(0, 30 - centreDistance * 80);
-  const areaRatio = box.width * box.height / (PROCESS_W * PROCESS_H);
-  const sizeScore = Math.min(25, areaRatio * 100);
+  const borderTouch = touchesBorder(box);
+  const borderPenalty = borderTouch ? 90 : 0;
+
+  const progress = movementCoordinate(box) / lineLength();
+  const decisionCentre =
+    (CONFIG.decisionStart + CONFIG.decisionEnd) / 2;
+  const centreDistance = Math.abs(progress - decisionCentre);
+  const centreScore = Math.max(0, 35 - centreDistance * 100);
+
+  const areaRatio =
+    box.width * box.height / (PROCESS_W * PROCESS_H);
+  const sizeScore = Math.min(30, areaRatio * 130);
+
+  const completeness =
+    borderTouch ? 0 : Math.min(25, box.fill * 35);
+
+  const sharpnessScore = Math.min(60, sharpness * 1.4);
 
   return {
     sharpness,
-    total: sharpness + centreScore + sizeScore - borderPenalty
+    complete: !borderTouch,
+    total:
+      sharpnessScore +
+      centreScore +
+      sizeScore +
+      completeness -
+      borderPenalty
   };
 }
 
@@ -1642,17 +1762,46 @@ function addLog(track, result, imageData) {
 }
 
 function decideTrack(track) {
-  if (track.decided || !track.frames?.length) return;
+  if (track.decided) return;
 
   const started = performance.now();
-  const usableFrames = [...track.frames]
+  const completeFrames = [...track.frames]
     .filter(frame => frame.sharpness >= CONFIG.minSharpness)
-    .sort((a, b) => b.quality - a.quality)
-    .slice(0, CONFIG.voteFrames);
+    .sort((a, b) => b.quality - a.quality);
 
-  const votingFrames = usableFrames.length
-    ? usableFrames
-    : [...track.frames].sort((a, b) => b.quality - a.quality).slice(0, 1);
+  if (!completeFrames.length) {
+    const result = {
+      rejected: true,
+      reason: "No clear complete frame captured",
+      goodDifference: 100,
+      badDifference: Infinity,
+      threshold: goodModel?.threshold ?? CONFIG.modelFloor,
+      latency: performance.now() - started,
+      votes: "0/0",
+      sharpness: 0,
+      quality: 0,
+      imageData: track.frames[0]?.imageData || null
+    };
+
+    track.decided = true;
+    track.result = result;
+
+    rejectCount++;
+    updateTopUI();
+    beep();
+    setStatus("REJECT — NO CLEAR COMPLETE FRAME", "reject");
+
+    if (result.imageData) {
+      addLog(track, result, result.imageData);
+    }
+
+    return;
+  }
+
+  const votingFrames = completeFrames.slice(
+    0,
+    Math.min(CONFIG.voteFrames, completeFrames.length)
+  );
 
   const results = votingFrames.map(frame => ({
     ...classify(frame.imageData),
@@ -1662,22 +1811,27 @@ function decideTrack(track) {
   }));
 
   const passResults = results.filter(result => !result.rejected);
-  const requiredVotes = Math.min(CONFIG.passVotes, results.length);
+
+  // Require the configured count, but never more votes than available frames.
+  const requiredVotes = Math.min(
+    CONFIG.passVotes,
+    results.length
+  );
+
   const passed = passResults.length >= requiredVotes;
 
-  let selected;
-  if (passed) {
-    selected = passResults.sort((a, b) => a.goodDifference - b.goodDifference)[0];
-  } else {
-    selected = results.sort((a, b) => a.goodDifference - b.goodDifference)[0];
-  }
+  const selected = (passed ? passResults : results)
+    .sort((a, b) => {
+      if (b.quality !== a.quality) return b.quality - a.quality;
+      return a.goodDifference - b.goodDifference;
+    })[0];
 
   const result = {
     ...selected,
     rejected: !passed,
     reason: passed
-      ? `Confirmed good by ${passResults.length}/${results.length} frame votes`
-      : `Rejected by frame voting (${passResults.length}/${results.length} good votes)`,
+      ? `Confirmed good by ${passResults.length}/${results.length} clear-frame votes`
+      : `Rejected by clear-frame voting (${passResults.length}/${results.length} good votes)`,
     latency: performance.now() - started,
     votes: `${passResults.length}/${results.length}`
   };
@@ -1692,10 +1846,14 @@ function decideTrack(track) {
     area: track.box.width * track.box.height
   });
 
-  $("latencyMetric").textContent = `${Math.round(result.latency)} ms`;
-  $("decisionMetric").textContent = result.rejected ? "REJECT" : "PASS";
+  $("latencyMetric").textContent =
+    `${Math.round(result.latency)} ms`;
+  $("decisionMetric").textContent =
+    result.rejected ? "REJECT" : "PASS";
   $("qualityMetric").textContent =
-    Number.isFinite(result.quality) ? result.quality.toFixed(1) : "—";
+    Number.isFinite(result.quality)
+      ? result.quality.toFixed(1)
+      : "—";
 
   if (result.rejected) {
     rejectCount++;
@@ -1706,157 +1864,179 @@ function decideTrack(track) {
     setStatus(`PASS — ${result.reason}`, "pass");
   }
 
+  // Always record the best-quality frame.
   addLog(track, result, result.imageData);
 }
 
 function updateTracks(boxes, frame, mask) {
-  const unmatched = new Set(boxes.map((_, i) => i));
+  const mergedBoxes = mergeNearbyComponents(boxes);
 
-  // Process older tracks first to keep identity stable.
-  const orderedTracks = [...tracks.values()].sort((a, b) => b.age - a.age);
+  if (mergedBoxes.length === 0) {
+    clearGapCounter++;
 
-  for (const track of orderedTracks) {
-    let bestIndex = -1;
-    let bestScore = -Infinity;
+    if (clearGapCounter >= CONFIG.clearGapFrames) {
+      productGateArmed = true;
+    }
 
-    for (const index of unmatched) {
-      const box = boxes[index];
-      const predicted = predictedDistance(track, box);
-      const overlap = iou(track.box, box);
-      const areaA = track.box.width * track.box.height;
-      const areaB = box.width * box.height;
-      const sizeSimilarity = Math.min(areaA, areaB) / Math.max(areaA, areaB);
-      const laneDifference = Math.abs(crossCoordinate(track.box) - crossCoordinate(box));
-      const progress =
-        movementCoordinate(box) - movementCoordinate(track.box);
-
-      // Prefer forward-moving candidates in the same lane.
-      const backwardsPenalty = progress < -20 ? 80 : 0;
-      const score =
-        overlap * 130 +
-        sizeSimilarity * 35 -
-        predicted -
-        laneDifference * 0.25 -
-        backwardsPenalty;
+    for (const track of tracks.values()) {
+      track.misses++;
 
       if (
-        score > bestScore &&
-        predicted <= CONFIG.matchDistance &&
-        sizeSimilarity >= 0.35
+        !track.decided &&
+        track.frames.length &&
+        track.age >= CONFIG.minTrackAge
       ) {
+        decideTrack(track);
+      }
+    }
+  } else {
+    clearGapCounter = 0;
+  }
+
+  const activeTrack = [...tracks.values()]
+    .filter(track => !track.finished)
+    .sort((a, b) => b.age - a.age)[0];
+
+  if (activeTrack && mergedBoxes.length) {
+    let bestBox = mergedBoxes[0];
+    let bestScore = -Infinity;
+
+    for (const box of mergedBoxes) {
+      const predicted = predictedDistance(activeTrack, box);
+      const overlap = iou(activeTrack.box, box);
+      const areaA = activeTrack.box.width * activeTrack.box.height;
+      const areaB = box.width * box.height;
+      const sizeSimilarity =
+        Math.min(areaA, areaB) / Math.max(areaA, areaB);
+
+      const score =
+        overlap * 150 +
+        sizeSimilarity * 40 -
+        predicted;
+
+      if (score > bestScore) {
         bestScore = score;
-        bestIndex = index;
+        bestBox = box;
       }
     }
 
-    if (bestIndex >= 0) {
-      const box = boxes[bestIndex];
-      unmatched.delete(bestIndex);
+    activeTrack.velocityX =
+      activeTrack.velocityX * 0.55 +
+      (bestBox.centreX - activeTrack.box.centreX) * 0.45;
+    activeTrack.velocityY =
+      activeTrack.velocityY * 0.55 +
+      (bestBox.centreY - activeTrack.box.centreY) * 0.45;
 
-      track.velocityX =
-        track.velocityX * 0.55 +
-        (box.centreX - track.box.centreX) * 0.45;
-      track.velocityY =
-        track.velocityY * 0.55 +
-        (box.centreY - track.box.centreY) * 0.45;
+    activeTrack.box = bestBox;
+    activeTrack.age++;
+    activeTrack.misses = 0;
 
-      track.box = box;
-      track.age++;
-      track.misses = 0;
+    const image = cropProduct(frame, bestBox, mask);
+    const quality = frameQuality(image, bestBox);
 
-      const image = cropProduct(frame, box, mask);
-      const sharpness = simpleSharpness(image);
+    activeTrack.totalSeenFrames++;
 
-      const quality = frameQuality(image, box);
-      track.frames.push({
+    // Partial or blurry captures are ignored rather than rejected.
+    if (
+      quality.complete &&
+      quality.sharpness >= CONFIG.minSharpness
+    ) {
+      activeTrack.frames.push({
         imageData: cloneImageData(image),
         sharpness: quality.sharpness,
         quality: quality.total
       });
-      track.frames.sort((a, b) => b.quality - a.quality);
-      track.frames = track.frames.slice(0, Math.max(CONFIG.voteFrames + 2, 5));
 
-      // Decide every product independently when it reaches the decision zone.
-      if (!track.decided && isInDecisionZone(box)) {
-        decideTrack(track);
-      }
+      activeTrack.frames.sort((a, b) => b.quality - a.quality);
+      activeTrack.frames = activeTrack.frames.slice(
+        0,
+        Math.max(CONFIG.voteFrames + 3, 6)
+      );
+    }
 
-      // Fail-safe decision if the object moved past the zone too quickly.
-      if (!track.decided && isPastDecisionZone(box) && track.frames.length) {
-        decideTrack(track);
-      }
-    } else {
-      track.misses++;
+    const enoughClearFrames =
+      activeTrack.frames.length >= CONFIG.minCollectedFrames;
 
-      // If it disappears after entering, still decide from its best frame.
-      if (
-        !track.decided &&
-        track.frames.length &&
-        (track.age >= CONFIG.minTrackAge || isPastDecisionZone(track.box))
-      ) {
-        decideTrack(track);
-      }
+    const reachedDecisionZone = isInDecisionZone(bestBox);
+    const waitedLongEnough =
+      activeTrack.totalSeenFrames >= CONFIG.maxWaitFrames;
+    const passedZone = isPastDecisionZone(bestBox);
+
+    if (
+      !activeTrack.decided &&
+      enoughClearFrames &&
+      (reachedDecisionZone || passedZone)
+    ) {
+      decideTrack(activeTrack);
+    } else if (
+      !activeTrack.decided &&
+      waitedLongEnough &&
+      activeTrack.frames.length
+    ) {
+      decideTrack(activeTrack);
     }
   }
 
-  // Create every clearly separated component as its own product.
-  for (const index of unmatched) {
-    if (tracks.size >= CONFIG.maxTracks) break;
-
-    const box = boxes[index];
-    if (recentlyDecided(box)) continue;
-
-    const tooCloseToExisting = [...tracks.values()].some(track => {
-      if (track.decided && track.misses > 0) return false;
-
-      const laneGap = Math.abs(crossCoordinate(track.box) - crossCoordinate(box));
-      const movementGap = Math.abs(
-        movementCoordinate(track.box) - movementCoordinate(box)
-      );
-
-      return laneGap < CONFIG.minSeparation && movementGap < CONFIG.minSeparation;
-    });
-
-    if (tooCloseToExisting) continue;
-
+  // Create exactly one product session only when the gate is armed.
+  if (
+    !activeTrack &&
+    mergedBoxes.length &&
+    productGateArmed
+  ) {
+    const box = mergedBoxes[0];
     const image = cropProduct(frame, box, mask);
+    const quality = frameQuality(image, box);
     const id = nextTrackId++;
 
-    const track = {
+    const frames = [];
+
+    if (
+      quality.complete &&
+      quality.sharpness >= CONFIG.minSharpness
+    ) {
+      frames.push({
+        imageData: cloneImageData(image),
+        sharpness: quality.sharpness,
+        quality: quality.total
+      });
+    }
+
+    tracks.set(id, {
       id,
       box,
       age: 1,
       misses: 0,
       decided: false,
+      finished: false,
       result: null,
-      frames: [{
-        imageData: cloneImageData(image),
-        sharpness: frameQuality(image, box).sharpness,
-        quality: frameQuality(image, box).total
-      }],
+      frames,
+      totalSeenFrames: 1,
       velocityX: 0,
       velocityY: 0
-    };
+    });
 
-    tracks.set(id, track);
-
-    // A product first detected inside or past the decision zone is inspected
-    // immediately so fast-moving items are not missed.
-    if (isInDecisionZone(box) || isPastDecisionZone(box)) {
-      decideTrack(track);
-    }
+    productGateArmed = false;
   }
 
   for (const [id, track] of tracks) {
-    // Keep decided tracks briefly for the overlay, then remove quickly so
-    // the next product can receive a fresh ID.
-    const removalLimit = track.decided ? 2 : CONFIG.maxMisses;
-    if (track.misses > removalLimit) {
+    if (track.decided && track.misses > 1) {
+      track.finished = true;
+    }
+
+    if (track.finished && clearGapCounter >= CONFIG.clearGapFrames) {
       tracks.delete(id);
+    } else if (
+      !track.decided &&
+      track.misses > CONFIG.maxMisses
+    ) {
+      if (track.frames.length) decideTrack(track);
+      track.finished = true;
     }
   }
 
-  $("trackMetric").textContent = String(tracks.size);
+  $("trackMetric").textContent = String(
+    [...tracks.values()].filter(track => !track.finished).length
+  );
 }
 
 function simpleSharpness(imageData) {
@@ -1925,7 +2105,7 @@ function processCameraFrame(timestamp) {
       if (!boxes.length && !tracks.size) {
         setStatus("BELT CLEAR — READY", "ready");
       } else if (boxes.length && ![...tracks.values()].some(track => track.decided)) {
-        setStatus("PRODUCT DETECTED — COLLECTING BEST FRAMES", "inspecting");
+        setStatus("PRODUCT SESSION ACTIVE — COLLECTING CLEAR FRAMES", "inspecting");
       }
     } catch (error) {
       setStatus(`PROCESSING ERROR — ${error.message}`, "reject");
@@ -1979,6 +2159,8 @@ function toggleInspection() {
   if (running) {
     tracks.clear();
     recentLocks.length = 0;
+    clearGapCounter = CONFIG.clearGapFrames;
+    productGateArmed = true;
     setStatus("INSPECTION STARTED — READY", "ready");
     scheduleNextFrame();
   } else {
@@ -2362,7 +2544,11 @@ function readAdvancedSettings() {
     modelMultiplier: Number($("cfgModelMultiplier").value),
     modelFloor: Number($("cfgModelFloor").value),
     modelCeiling: Number($("cfgModelCeiling").value),
-    rotationNormalize: Number($("cfgRotationNormalize").value)
+    rotationNormalize: Number($("cfgRotationNormalize").value),
+    clearGapFrames: Number($("cfgClearGapFrames").value),
+    mergeDistance: Number($("cfgMergeDistance").value),
+    minCollectedFrames: Number($("cfgMinCollectedFrames").value),
+    maxWaitFrames: Number($("cfgMaxWaitFrames").value)
   };
 }
 
@@ -2389,6 +2575,10 @@ function writeAdvancedSettings(settings) {
   $("cfgModelFloor").value = settings.modelFloor ?? 8;
   $("cfgModelCeiling").value = settings.modelCeiling ?? 28;
   $("cfgRotationNormalize").value = settings.rotationNormalize ?? 1;
+  $("cfgClearGapFrames").value = settings.clearGapFrames ?? 3;
+  $("cfgMergeDistance").value = settings.mergeDistance ?? 22;
+  $("cfgMinCollectedFrames").value = settings.minCollectedFrames ?? 3;
+  $("cfgMaxWaitFrames").value = settings.maxWaitFrames ?? 10;
 }
 
 function applyAdvancedSettings(settings = readAdvancedSettings()) {
@@ -2432,7 +2622,11 @@ function applyAdvancedSettings(settings = readAdvancedSettings()) {
     modelMultiplier: settings.modelMultiplier,
     modelFloor: settings.modelFloor,
     modelCeiling: settings.modelCeiling,
-    rotationNormalize: settings.rotationNormalize
+    rotationNormalize: settings.rotationNormalize,
+    clearGapFrames: settings.clearGapFrames,
+    mergeDistance: settings.mergeDistance,
+    minCollectedFrames: settings.minCollectedFrames,
+    maxWaitFrames: settings.maxWaitFrames
   };
 
   workCanvas.width = PROCESS_W;
@@ -2446,6 +2640,8 @@ function applyAdvancedSettings(settings = readAdvancedSettings()) {
   beltModel = null;
   tracks.clear();
   recentLocks.length = 0;
+  clearGapCounter = 0;
+  productGateArmed = true;
   updateRoiOverlay();
 
   $("advancedMessage").textContent =
@@ -2464,7 +2660,8 @@ const ADVANCED_PRESETS = {
     borderMargin: .02, voteFrames: 2, passVotes: 1,
     upsideDownMargin: 2, badVetoMargin: 2, morphology: 0,
     modelMultiplier: 2.5, modelFloor: 9, modelCeiling: 32,
-    rotationNormalize: 1
+    rotationNormalize: 1, clearGapFrames: 2, mergeDistance: 18,
+    minCollectedFrames: 2, maxWaitFrames: 7
   },
   balanced: {
     width: 320, height: 240, ...DEFAULT_CONFIG
@@ -2477,7 +2674,8 @@ const ADVANCED_PRESETS = {
     borderMargin: .05, voteFrames: 5, passVotes: 3,
     upsideDownMargin: 1.5, badVetoMargin: 1.5, morphology: 1,
     modelMultiplier: 1.8, modelFloor: 6, modelCeiling: 22,
-    rotationNormalize: 1
+    rotationNormalize: 1, clearGapFrames: 4, mergeDistance: 26,
+    minCollectedFrames: 4, maxWaitFrames: 14
   }
 };
 
