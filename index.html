@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Universal Line Inspector — High-Throughput V3.1</title>
+  <title>Universal Line Inspector — Configurable Vision V3.2</title>
   <style>
     :root {
       color-scheme: dark;
@@ -295,6 +295,39 @@
       header { align-items: stretch; }
       .top-actions { width: 52%; }
     }
+  
+    .settings-grid {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:12px;
+      margin-top:14px;
+    }
+
+    .settings-grid label {
+      display:grid;
+      gap:6px;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .settings-grid input,
+    .settings-grid select {
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:10px;
+      background:var(--panel-2);
+      color:var(--text);
+      font-size:15px;
+    }
+
+    @media (max-width:800px) {
+      .settings-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    }
+
+    @media (max-width:520px) {
+      .settings-grid { grid-template-columns:1fr; }
+    }
   </style>
 </head>
 <body>
@@ -302,7 +335,7 @@
   <header>
     <div>
       <h1>Universal Line Inspector</h1>
-      <div class="helper">High-Throughput V3.1</div>
+      <div class="helper">Configurable Vision V3.2</div>
     </div>
 
     <div class="top-actions">
@@ -384,6 +417,114 @@
     </div>
   </section>
 
+
+  <section class="panel">
+    <h2>Advanced Inspection Settings</h2>
+
+    <div class="controls">
+      <button id="presetFastBtn" class="primary">Fast Line Preset</button>
+      <button id="presetBalancedBtn" class="success">Balanced Preset</button>
+      <button id="presetAccurateBtn" class="purple">Accuracy Preset</button>
+      <button id="resetAdvancedBtn">Reset Settings</button>
+      <button id="saveSettingsBtn">Save Settings</button>
+    </div>
+
+    <p class="helper">
+      Change settings while inspection is stopped. Any setting that changes image
+      processing or detection requires recalibration.
+    </p>
+
+    <div class="settings-grid">
+      <label>Processing resolution
+        <select id="processingPreset">
+          <option value="256x192">Fast — 256×192</option>
+          <option value="320x240" selected>Balanced — 320×240</option>
+          <option value="384x288">Detailed — 384×288</option>
+        </select>
+      </label>
+
+      <label>Target processing FPS
+        <input id="targetFps" type="number" min="8" max="60" value="26">
+      </label>
+
+      <label>Track match distance
+        <input id="cfgMatchDistance" type="number" min="30" max="180" value="105">
+      </label>
+
+      <label>Track missed-frame allowance
+        <input id="cfgMaxMisses" type="number" min="1" max="15" value="4">
+      </label>
+
+      <label>Minimum track age
+        <input id="cfgMinTrackAge" type="number" min="1" max="8" value="1">
+      </label>
+
+      <label>Same-product lockout
+        <input id="cfgLockMs" type="number" min="80" max="1200" step="20" value="320">
+      </label>
+
+      <label>Minimum product separation
+        <input id="cfgMinSeparation" type="number" min="2" max="40" value="7">
+      </label>
+
+      <label>Maximum active tracks
+        <input id="cfgMaxTracks" type="number" min="2" max="30" value="12">
+      </label>
+
+      <label>Entry-zone position
+        <input id="cfgEntryZone" type="number" min="5" max="35" value="18">
+      </label>
+
+      <label>Inspection-zone start
+        <input id="cfgDecisionStart" type="number" min="10" max="70" value="34">
+      </label>
+
+      <label>Inspection-zone end
+        <input id="cfgDecisionEnd" type="number" min="30" max="95" value="70">
+      </label>
+
+      <label>Minimum sharpness
+        <input id="cfgMinSharpness" type="number" min="0" max="80" step="0.5" value="5">
+      </label>
+
+      <label>Border safety margin
+        <input id="cfgBorderMargin" type="number" min="0" max="20" value="3">
+      </label>
+
+      <label>Best frames per product
+        <input id="cfgVoteFrames" type="number" min="1" max="7" value="3">
+      </label>
+
+      <label>PASS votes required
+        <input id="cfgPassVotes" type="number" min="1" max="7" value="2">
+      </label>
+
+      <label>Upside-down veto margin
+        <input id="cfgUpsideDownMargin" type="number" min="0" max="15" step="0.5" value="2">
+      </label>
+
+      <label>Known-reject veto margin
+        <input id="cfgBadVetoMargin" type="number" min="0" max="15" step="0.5" value="2">
+      </label>
+
+      <label>Morphology strength
+        <select id="cfgMorphology">
+          <option value="0">Off</option>
+          <option value="1" selected>Light</option>
+          <option value="2">Medium</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="controls">
+      <button id="applyAdvancedBtn" class="warning">Apply Settings</button>
+    </div>
+
+    <p id="advancedMessage" class="helper">
+      Balanced settings active.
+    </p>
+  </section>
+
   <section class="panel">
     <h2>Calibration</h2>
     <div class="banks">
@@ -442,21 +583,32 @@
 <script>
 "use strict";
 
-const PROCESS_W = 320;
-const PROCESS_H = 240;
-const LOOP_INTERVAL_MS = 38;
-const TRACK_MATCH_DISTANCE = 105;
-const TRACK_MAX_MISSES = 4;
-const MIN_TRACK_AGE = 1;
-const DECISION_LOCK_MS = 320;
-const MAX_LOG_ITEMS = 30;
-const BURST_FRAMES = 12;
-const ENTRY_ZONE_EDGE = 0.18;
-const INSPECTION_ZONE_START = 0.34;
-const INSPECTION_ZONE_END = 0.70;
-const EXIT_ZONE_EDGE = 0.84;
-const MIN_SEPARATION_PIXELS = 7;
-const MAX_SIMULTANEOUS_TRACKS = 12;
+let PROCESS_W = 320;
+let PROCESS_H = 240;
+
+const DEFAULT_CONFIG = Object.freeze({
+  targetFps: 26,
+  matchDistance: 105,
+  maxMisses: 4,
+  minTrackAge: 1,
+  decisionLockMs: 320,
+  maxLogItems: 30,
+  burstFrames: 12,
+  entryZone: 0.18,
+  decisionStart: 0.34,
+  decisionEnd: 0.70,
+  minSeparation: 7,
+  maxTracks: 12,
+  minSharpness: 5,
+  borderMargin: 0.03,
+  voteFrames: 3,
+  passVotes: 2,
+  upsideDownMargin: 2,
+  badVetoMargin: 2,
+  morphology: 1
+});
+
+let CONFIG = { ...DEFAULT_CONFIG };
 
 
 const video = document.getElementById("video");
@@ -482,6 +634,7 @@ let stream = null;
 let running = false;
 let calibrated = false;
 let animationId = 0;
+let videoFrameCallbackId = null;
 let lastLoopAt = 0;
 let lastFpsAt = performance.now();
 let processedFrames = 0;
@@ -610,8 +763,8 @@ function updateRoiOverlay() {
 
   if (conveyorDirection === "down" || conveyorDirection === "up") {
     const entryRatio = conveyorDirection === "down"
-      ? ENTRY_ZONE_EDGE
-      : 1 - ENTRY_ZONE_EDGE;
+      ? CONFIG.entryZone
+      : 1 - CONFIG.entryZone;
 
     entryBand.style.left = `${left}px`;
     entryBand.style.width = `${width}px`;
@@ -620,13 +773,13 @@ function updateRoiOverlay() {
 
     decisionBand.style.left = `${left}px`;
     decisionBand.style.width = `${width}px`;
-    decisionBand.style.top = `${top + height * INSPECTION_ZONE_START}px`;
+    decisionBand.style.top = `${top + height * CONFIG.decisionStart}px`;
     decisionBand.style.height =
-      `${height * (INSPECTION_ZONE_END - INSPECTION_ZONE_START)}px`;
+      `${height * (CONFIG.decisionEnd - CONFIG.decisionStart)}px`;
   } else {
     const entryRatio = conveyorDirection === "right"
-      ? ENTRY_ZONE_EDGE
-      : 1 - ENTRY_ZONE_EDGE;
+      ? CONFIG.entryZone
+      : 1 - CONFIG.entryZone;
 
     entryBand.style.top = `${top}px`;
     entryBand.style.height = `${height}px`;
@@ -635,9 +788,9 @@ function updateRoiOverlay() {
 
     decisionBand.style.top = `${top}px`;
     decisionBand.style.height = `${height}px`;
-    decisionBand.style.left = `${left + width * INSPECTION_ZONE_START}px`;
+    decisionBand.style.left = `${left + width * CONFIG.decisionStart}px`;
     decisionBand.style.width =
-      `${width * (INSPECTION_ZONE_END - INSPECTION_ZONE_START)}px`;
+      `${width * (CONFIG.decisionEnd - CONFIG.decisionStart)}px`;
   }
 }
 
@@ -862,24 +1015,29 @@ function createMask(imageData) {
     mask[p] = distance >= threshold ? 255 : 0;
   }
 
-  // Light majority filter removes isolated noise without closing the
-  // small belt gap between back-to-back products.
   const cleaned = new Uint8Array(mask.length);
 
-  for (let y = 1; y < PROCESS_H - 1; y++) {
-    for (let x = 1; x < PROCESS_W - 1; x++) {
-      let neighbours = 0;
+  if (CONFIG.morphology === 0) {
+    cleaned.set(mask);
+  } else {
+    const requiredOn = CONFIG.morphology === 1 ? 3 : 4;
+    const requiredFill = CONFIG.morphology === 1 ? 7 : 6;
 
-      for (let oy = -1; oy <= 1; oy++) {
-        for (let ox = -1; ox <= 1; ox++) {
-          if (mask[(y + oy) * PROCESS_W + x + ox]) neighbours++;
+    for (let y = 1; y < PROCESS_H - 1; y++) {
+      for (let x = 1; x < PROCESS_W - 1; x++) {
+        let neighbours = 0;
+
+        for (let oy = -1; oy <= 1; oy++) {
+          for (let ox = -1; ox <= 1; ox++) {
+            if (mask[(y + oy) * PROCESS_W + x + ox]) neighbours++;
+          }
         }
-      }
 
-      cleaned[y * PROCESS_W + x] =
-        mask[y * PROCESS_W + x]
-          ? (neighbours >= 3 ? 255 : 0)
-          : (neighbours >= 7 ? 255 : 0);
+        cleaned[y * PROCESS_W + x] =
+          mask[y * PROCESS_W + x]
+            ? (neighbours >= requiredOn ? 255 : 0)
+            : (neighbours >= requiredFill ? 255 : 0);
+      }
     }
   }
 
@@ -1000,6 +1158,36 @@ function cropProduct(imageData, box) {
   return result;
 }
 
+
+function touchesBorder(box) {
+  const marginX = PROCESS_W * CONFIG.borderMargin;
+  const marginY = PROCESS_H * CONFIG.borderMargin;
+
+  return (
+    box.x <= marginX ||
+    box.y <= marginY ||
+    box.x + box.width >= PROCESS_W - marginX ||
+    box.y + box.height >= PROCESS_H - marginY
+  );
+}
+
+function frameQuality(imageData, box) {
+  const sharpness = simpleSharpness(imageData);
+  const borderPenalty = touchesBorder(box) ? 40 : 0;
+  const centreDistance = Math.abs(
+    movementCoordinate(box) / lineLength() -
+    (CONFIG.decisionStart + CONFIG.decisionEnd) / 2
+  );
+  const centreScore = Math.max(0, 30 - centreDistance * 80);
+  const areaRatio = box.width * box.height / (PROCESS_W * PROCESS_H);
+  const sizeScore = Math.min(25, areaRatio * 100);
+
+  return {
+    sharpness,
+    total: sharpness + centreScore + sizeScore - borderPenalty
+  };
+}
+
 function classify(imageData) {
   const started = performance.now();
   const feature = featureVector(imageData);
@@ -1011,10 +1199,10 @@ function classify(imageData) {
   let rejected = true;
   let reason = "Unknown product";
 
-  if (rotatedGood.difference + 2 < good.difference) {
+  if (rotatedGood.difference + CONFIG.upsideDownMargin < good.difference) {
     rejected = true;
     reason = "Upside-down orientation";
-  } else if (bad.difference + 2 < good.difference) {
+  } else if (bad.difference + CONFIG.badVetoMargin < good.difference) {
     rejected = true;
     reason = "Matches known reject";
   } else if (good.difference <= threshold) {
@@ -1056,15 +1244,15 @@ function lineLength() {
 
 function isInDecisionZone(box) {
   const ratio = movementCoordinate(box) / lineLength();
-  return ratio >= INSPECTION_ZONE_START && ratio <= INSPECTION_ZONE_END;
+  return ratio >= CONFIG.decisionStart && ratio <= CONFIG.decisionEnd;
 }
 
 function isPastDecisionZone(box) {
-  return movementCoordinate(box) / lineLength() > INSPECTION_ZONE_END;
+  return movementCoordinate(box) / lineLength() > CONFIG.decisionEnd;
 }
 
 function isNearEntry(box) {
-  return movementCoordinate(box) / lineLength() <= ENTRY_ZONE_EDGE + 0.12;
+  return movementCoordinate(box) / lineLength() <= CONFIG.entryZone + 0.12;
 }
 
 function predictedDistance(track, box) {
@@ -1089,7 +1277,7 @@ function iou(a, b) {
 
 function pruneLocks() {
   const now = performance.now();
-  while (recentLocks.length && now - recentLocks[0].time > DECISION_LOCK_MS) {
+  while (recentLocks.length && now - recentLocks[0].time > CONFIG.decisionLockMs) {
     recentLocks.shift();
   }
 }
@@ -1128,22 +1316,61 @@ function addLog(track, result, imageData) {
       ${new Date().toLocaleTimeString()}<br>
       ${result.reason}<br>
       Good difference: ${result.goodDifference.toFixed(1)}%<br>
-      Decision time: ${Math.round(result.latency)} ms
+      Decision time: ${Math.round(result.latency)} ms<br>
+      Frame votes: ${result.votes || "1/1"}<br>
+      Sharpness: ${Number.isFinite(result.sharpness) ? result.sharpness.toFixed(1) : "—"}
     </div>
   `;
 
   const log = $("activityLog");
   log.prepend(item);
 
-  while (log.children.length > MAX_LOG_ITEMS) {
+  while (log.children.length > CONFIG.maxLogItems) {
     log.lastElementChild.remove();
   }
 }
 
 function decideTrack(track) {
-  if (track.decided || !track.bestImage) return;
+  if (track.decided || !track.frames?.length) return;
 
-  const result = classify(track.bestImage);
+  const started = performance.now();
+  const usableFrames = [...track.frames]
+    .filter(frame => frame.sharpness >= CONFIG.minSharpness)
+    .sort((a, b) => b.quality - a.quality)
+    .slice(0, CONFIG.voteFrames);
+
+  const votingFrames = usableFrames.length
+    ? usableFrames
+    : [...track.frames].sort((a, b) => b.quality - a.quality).slice(0, 1);
+
+  const results = votingFrames.map(frame => ({
+    ...classify(frame.imageData),
+    imageData: frame.imageData,
+    quality: frame.quality,
+    sharpness: frame.sharpness
+  }));
+
+  const passResults = results.filter(result => !result.rejected);
+  const requiredVotes = Math.min(CONFIG.passVotes, results.length);
+  const passed = passResults.length >= requiredVotes;
+
+  let selected;
+  if (passed) {
+    selected = passResults.sort((a, b) => a.goodDifference - b.goodDifference)[0];
+  } else {
+    selected = results.sort((a, b) => a.goodDifference - b.goodDifference)[0];
+  }
+
+  const result = {
+    ...selected,
+    rejected: !passed,
+    reason: passed
+      ? `Confirmed good by ${passResults.length}/${results.length} frame votes`
+      : `Rejected by frame voting (${passResults.length}/${results.length} good votes)`,
+    latency: performance.now() - started,
+    votes: `${passResults.length}/${results.length}`
+  };
+
   track.decided = true;
   track.result = result;
 
@@ -1166,7 +1393,7 @@ function decideTrack(track) {
     setStatus(`PASS — ${result.reason}`, "pass");
   }
 
-  addLog(track, result, track.bestImage);
+  addLog(track, result, result.imageData);
 }
 
 function updateTracks(boxes, frame) {
@@ -1201,7 +1428,7 @@ function updateTracks(boxes, frame) {
 
       if (
         score > bestScore &&
-        predicted <= TRACK_MATCH_DISTANCE &&
+        predicted <= CONFIG.matchDistance &&
         sizeSimilarity >= 0.35
       ) {
         bestScore = score;
@@ -1227,10 +1454,14 @@ function updateTracks(boxes, frame) {
       const image = cropProduct(frame, box);
       const sharpness = simpleSharpness(image);
 
-      if (!track.bestImage || sharpness > track.bestSharpness) {
-        track.bestImage = cloneImageData(image);
-        track.bestSharpness = sharpness;
-      }
+      const quality = frameQuality(image, box);
+      track.frames.push({
+        imageData: cloneImageData(image),
+        sharpness: quality.sharpness,
+        quality: quality.total
+      });
+      track.frames.sort((a, b) => b.quality - a.quality);
+      track.frames = track.frames.slice(0, Math.max(CONFIG.voteFrames + 2, 5));
 
       // Decide every product independently when it reaches the decision zone.
       if (!track.decided && isInDecisionZone(box)) {
@@ -1238,7 +1469,7 @@ function updateTracks(boxes, frame) {
       }
 
       // Fail-safe decision if the object moved past the zone too quickly.
-      if (!track.decided && isPastDecisionZone(box) && track.bestImage) {
+      if (!track.decided && isPastDecisionZone(box) && track.frames.length) {
         decideTrack(track);
       }
     } else {
@@ -1247,8 +1478,8 @@ function updateTracks(boxes, frame) {
       // If it disappears after entering, still decide from its best frame.
       if (
         !track.decided &&
-        track.bestImage &&
-        (track.age >= 1 || isPastDecisionZone(track.box))
+        track.frames.length &&
+        (track.age >= CONFIG.minTrackAge || isPastDecisionZone(track.box))
       ) {
         decideTrack(track);
       }
@@ -1257,7 +1488,7 @@ function updateTracks(boxes, frame) {
 
   // Create every clearly separated component as its own product.
   for (const index of unmatched) {
-    if (tracks.size >= MAX_SIMULTANEOUS_TRACKS) break;
+    if (tracks.size >= CONFIG.maxTracks) break;
 
     const box = boxes[index];
     if (recentlyDecided(box)) continue;
@@ -1270,7 +1501,7 @@ function updateTracks(boxes, frame) {
         movementCoordinate(track.box) - movementCoordinate(box)
       );
 
-      return laneGap < MIN_SEPARATION_PIXELS && movementGap < MIN_SEPARATION_PIXELS;
+      return laneGap < CONFIG.minSeparation && movementGap < CONFIG.minSeparation;
     });
 
     if (tooCloseToExisting) continue;
@@ -1285,8 +1516,11 @@ function updateTracks(boxes, frame) {
       misses: 0,
       decided: false,
       result: null,
-      bestImage: cloneImageData(image),
-      bestSharpness: simpleSharpness(image),
+      frames: [{
+        imageData: cloneImageData(image),
+        sharpness: frameQuality(image, box).sharpness,
+        quality: frameQuality(image, box).total
+      }],
       velocityX: 0,
       velocityY: 0
     };
@@ -1303,7 +1537,7 @@ function updateTracks(boxes, frame) {
   for (const [id, track] of tracks) {
     // Keep decided tracks briefly for the overlay, then remove quickly so
     // the next product can receive a fresh ID.
-    const removalLimit = track.decided ? 2 : TRACK_MAX_MISSES;
+    const removalLimit = track.decided ? 2 : CONFIG.maxMisses;
     if (track.misses > removalLimit) {
       tracks.delete(id);
     }
@@ -1359,10 +1593,12 @@ function drawTracks() {
   }
 }
 
-function loop(timestamp) {
+function processCameraFrame(timestamp) {
   if (!running) return;
 
-  if (timestamp - lastLoopAt >= LOOP_INTERVAL_MS) {
+  const intervalMs = 1000 / Math.max(1, CONFIG.targetFps);
+
+  if (timestamp - lastLoopAt >= intervalMs) {
     lastLoopAt = timestamp;
     processedFrames++;
 
@@ -1375,8 +1611,8 @@ function loop(timestamp) {
 
       if (!boxes.length && !tracks.size) {
         setStatus("BELT CLEAR — READY", "ready");
-      } else if (boxes.length && ![...tracks.values()].some(t => t.decided)) {
-        setStatus("PRODUCT DETECTED — TRACKING TO INSPECTION BAND", "inspecting");
+      } else if (boxes.length && ![...tracks.values()].some(track => track.decided)) {
+        setStatus("PRODUCT DETECTED — COLLECTING BEST FRAMES", "inspecting");
       }
     } catch (error) {
       setStatus(`PROCESSING ERROR — ${error.message}`, "reject");
@@ -1390,7 +1626,31 @@ function loop(timestamp) {
     lastFpsAt = now;
   }
 
-  animationId = requestAnimationFrame(loop);
+  scheduleNextFrame();
+}
+
+function scheduleNextFrame() {
+  if (!running) return;
+
+  if ("requestVideoFrameCallback" in HTMLVideoElement.prototype) {
+    videoFrameCallbackId = video.requestVideoFrameCallback(
+      (now) => processCameraFrame(now)
+    );
+  } else {
+    animationId = requestAnimationFrame(processCameraFrame);
+  }
+}
+
+function cancelFrameLoop() {
+  if (
+    videoFrameCallbackId !== null &&
+    "cancelVideoFrameCallback" in HTMLVideoElement.prototype
+  ) {
+    video.cancelVideoFrameCallback(videoFrameCallbackId);
+    videoFrameCallbackId = null;
+  }
+
+  cancelFrameLoop();
 }
 
 function toggleInspection() {
@@ -1407,9 +1667,9 @@ function toggleInspection() {
     tracks.clear();
     recentLocks.length = 0;
     setStatus("INSPECTION STARTED — READY", "ready");
-    animationId = requestAnimationFrame(loop);
+    scheduleNextFrame();
   } else {
-    cancelAnimationFrame(animationId);
+    cancelFrameLoop();
     setStatus("INSPECTION STOPPED", "ready");
   }
 }
@@ -1484,7 +1744,7 @@ async function captureBurst(type) {
   const target = type === "belt" ? beltSamples : type === "good" ? goodSamples : badSamples;
   setStatus(`CAPTURING ${type.toUpperCase()} BURST…`, "inspecting");
 
-  for (let i = 0; i < BURST_FRAMES; i++) {
+  for (let i = 0; i < CONFIG.burstFrames; i++) {
     const image = captureRoi();
     target.push(makeSample(image, type));
     await new Promise(resolve => setTimeout(resolve, 120));
@@ -1495,7 +1755,7 @@ async function captureBurst(type) {
 
   renderBanks();
   calibrated = false;
-  setStatus(`CAPTURED ${BURST_FRAMES} ${type.toUpperCase()} REFERENCES`, "ready");
+  setStatus(`CAPTURED ${CONFIG.burstFrames} ${type.toUpperCase()} REFERENCES`, "ready");
 }
 
 function renderBank(containerId, samples, type) {
@@ -1588,6 +1848,167 @@ function clearProfile() {
   alert("Saved profile deleted.");
 }
 
+
+function readAdvancedSettings() {
+  const [width, height] = $("processingPreset").value.split("x").map(Number);
+
+  return {
+    width,
+    height,
+    targetFps: Number($("targetFps").value),
+    matchDistance: Number($("cfgMatchDistance").value),
+    maxMisses: Number($("cfgMaxMisses").value),
+    minTrackAge: Number($("cfgMinTrackAge").value),
+    decisionLockMs: Number($("cfgLockMs").value),
+    minSeparation: Number($("cfgMinSeparation").value),
+    maxTracks: Number($("cfgMaxTracks").value),
+    entryZone: Number($("cfgEntryZone").value) / 100,
+    decisionStart: Number($("cfgDecisionStart").value) / 100,
+    decisionEnd: Number($("cfgDecisionEnd").value) / 100,
+    minSharpness: Number($("cfgMinSharpness").value),
+    borderMargin: Number($("cfgBorderMargin").value) / 100,
+    voteFrames: Number($("cfgVoteFrames").value),
+    passVotes: Number($("cfgPassVotes").value),
+    upsideDownMargin: Number($("cfgUpsideDownMargin").value),
+    badVetoMargin: Number($("cfgBadVetoMargin").value),
+    morphology: Number($("cfgMorphology").value)
+  };
+}
+
+function writeAdvancedSettings(settings) {
+  $("processingPreset").value = `${settings.width || PROCESS_W}x${settings.height || PROCESS_H}`;
+  $("targetFps").value = settings.targetFps;
+  $("cfgMatchDistance").value = settings.matchDistance;
+  $("cfgMaxMisses").value = settings.maxMisses;
+  $("cfgMinTrackAge").value = settings.minTrackAge;
+  $("cfgLockMs").value = settings.decisionLockMs;
+  $("cfgMinSeparation").value = settings.minSeparation;
+  $("cfgMaxTracks").value = settings.maxTracks;
+  $("cfgEntryZone").value = Math.round(settings.entryZone * 100);
+  $("cfgDecisionStart").value = Math.round(settings.decisionStart * 100);
+  $("cfgDecisionEnd").value = Math.round(settings.decisionEnd * 100);
+  $("cfgMinSharpness").value = settings.minSharpness;
+  $("cfgBorderMargin").value = Math.round(settings.borderMargin * 100);
+  $("cfgVoteFrames").value = settings.voteFrames;
+  $("cfgPassVotes").value = settings.passVotes;
+  $("cfgUpsideDownMargin").value = settings.upsideDownMargin;
+  $("cfgBadVetoMargin").value = settings.badVetoMargin;
+  $("cfgMorphology").value = settings.morphology;
+}
+
+function applyAdvancedSettings(settings = readAdvancedSettings()) {
+  if (running) {
+    alert("Stop inspection before applying advanced settings.");
+    return;
+  }
+
+  if (settings.decisionStart >= settings.decisionEnd) {
+    alert("Inspection-zone start must be lower than inspection-zone end.");
+    return;
+  }
+
+  if (settings.passVotes > settings.voteFrames) {
+    alert("PASS votes required cannot exceed best frames per product.");
+    return;
+  }
+
+  PROCESS_W = settings.width;
+  PROCESS_H = settings.height;
+
+  CONFIG = {
+    ...CONFIG,
+    targetFps: settings.targetFps,
+    matchDistance: settings.matchDistance,
+    maxMisses: settings.maxMisses,
+    minTrackAge: settings.minTrackAge,
+    decisionLockMs: settings.decisionLockMs,
+    minSeparation: settings.minSeparation,
+    maxTracks: settings.maxTracks,
+    entryZone: settings.entryZone,
+    decisionStart: settings.decisionStart,
+    decisionEnd: settings.decisionEnd,
+    minSharpness: settings.minSharpness,
+    borderMargin: settings.borderMargin,
+    voteFrames: settings.voteFrames,
+    passVotes: settings.passVotes,
+    upsideDownMargin: settings.upsideDownMargin,
+    badVetoMargin: settings.badVetoMargin,
+    morphology: settings.morphology
+  };
+
+  workCanvas.width = PROCESS_W;
+  workCanvas.height = PROCESS_H;
+  roiCanvas.width = PROCESS_W;
+  roiCanvas.height = PROCESS_H;
+  maskCanvas.width = PROCESS_W;
+  maskCanvas.height = PROCESS_H;
+
+  calibrated = false;
+  beltModel = null;
+  tracks.clear();
+  recentLocks.length = 0;
+  updateRoiOverlay();
+
+  $("advancedMessage").textContent =
+    `Applied ${PROCESS_W}×${PROCESS_H}, ${CONFIG.targetFps} FPS, ` +
+    `${CONFIG.voteFrames} best frames and ${CONFIG.passVotes} PASS votes. Recalibrate.`;
+
+  setStatus("SETTINGS APPLIED — RECALIBRATE", "inspecting");
+}
+
+const ADVANCED_PRESETS = {
+  fast: {
+    width: 256, height: 192, targetFps: 35, matchDistance: 125,
+    maxMisses: 3, minTrackAge: 1, decisionLockMs: 220,
+    minSeparation: 5, maxTracks: 16, entryZone: .14,
+    decisionStart: .25, decisionEnd: .67, minSharpness: 2.5,
+    borderMargin: .02, voteFrames: 2, passVotes: 1,
+    upsideDownMargin: 2, badVetoMargin: 2, morphology: 0
+  },
+  balanced: {
+    width: 320, height: 240, ...DEFAULT_CONFIG
+  },
+  accurate: {
+    width: 384, height: 288, targetFps: 18, matchDistance: 90,
+    maxMisses: 6, minTrackAge: 2, decisionLockMs: 420,
+    minSeparation: 9, maxTracks: 10, entryZone: .18,
+    decisionStart: .34, decisionEnd: .76, minSharpness: 8,
+    borderMargin: .05, voteFrames: 5, passVotes: 3,
+    upsideDownMargin: 1.5, badVetoMargin: 1.5, morphology: 1
+  }
+};
+
+function applyPreset(name) {
+  const preset = ADVANCED_PRESETS[name];
+  writeAdvancedSettings(preset);
+  applyAdvancedSettings(preset);
+}
+
+function saveAdvancedSettings() {
+  localStorage.setItem("uli_v32_settings", JSON.stringify({
+    width: PROCESS_W,
+    height: PROCESS_H,
+    ...CONFIG
+  }));
+  $("advancedMessage").textContent = "Advanced settings saved on this device.";
+}
+
+function loadAdvancedSettings() {
+  const raw = localStorage.getItem("uli_v32_settings");
+  if (!raw) {
+    writeAdvancedSettings({ width: PROCESS_W, height: PROCESS_H, ...CONFIG });
+    return;
+  }
+
+  try {
+    const saved = JSON.parse(raw);
+    writeAdvancedSettings(saved);
+    applyAdvancedSettings(saved);
+  } catch {
+    writeAdvancedSettings({ width: PROCESS_W, height: PROCESS_H, ...CONFIG });
+  }
+}
+
 $("rearCameraBtn").addEventListener("click", () => startCamera("environment"));
 $("frontCameraBtn").addEventListener("click", () => startCamera("user"));
 $("inspectionBtn").addEventListener("click", toggleInspection);
@@ -1605,6 +2026,17 @@ $("fullscreenBtn").addEventListener("click", async () => {
 $("fullRoiBtn").addEventListener("click", () => setRoi("full"));
 $("verticalRoiBtn").addEventListener("click", () => setRoi("vertical"));
 $("horizontalRoiBtn").addEventListener("click", () => setRoi("horizontal"));
+
+
+$("presetFastBtn").addEventListener("click", () => applyPreset("fast"));
+$("presetBalancedBtn").addEventListener("click", () => applyPreset("balanced"));
+$("presetAccurateBtn").addEventListener("click", () => applyPreset("accurate"));
+$("applyAdvancedBtn").addEventListener("click", () => applyAdvancedSettings());
+$("saveSettingsBtn").addEventListener("click", saveAdvancedSettings);
+$("resetAdvancedBtn").addEventListener("click", () => {
+  localStorage.removeItem("uli_v32_settings");
+  applyPreset("balanced");
+});
 
 $("directionSelect").addEventListener("change", event => {
   conveyorDirection = event.target.value;
@@ -1663,6 +2095,7 @@ productCanvas.height = 180;
 updateSliderLabels();
 updateTopUI();
 renderBanks();
+loadAdvancedSettings();
 setStatus("READY — START CAMERA AND CALIBRATE", "ready");
 </script>
 </body>
