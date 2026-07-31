@@ -1,2692 +1,578 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Universal Line Inspector — Fast Session Reset V4.3</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Vision Inspector - Robust Gap Re-entry</title>
   <style>
     :root {
-      color-scheme: dark;
-      --bg: #09111f;
-      --panel: #142033;
-      --panel-2: #0f172a;
-      --line: #2b3a55;
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #3b82f6;
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
       --text: #f8fafc;
-      --muted: #9fb0c8;
-      --blue: #3b82f6;
-      --green: #10b981;
-      --red: #ef4444;
-      --orange: #f59e0b;
-      --purple: #7c3aed;
+      --text-muted: #94a3b8;
     }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text); padding: 10px; }
+    
+    header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #334155; }
+    h1 { font-size: 0.95rem; }
 
-    * { box-sizing: border-box; }
+    .header-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .counter-box { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); padding: 2px 8px; border-radius: 6px; text-align: center; display: flex; align-items: center; gap: 6px; }
+    .counter-val { font-size: 1.1rem; font-weight: bold; color: var(--danger); }
+    
+    .profile-select { background: #0f172a; color: var(--text); border: 1px solid #475569; padding: 5px; border-radius: 6px; font-size: 0.75rem; }
 
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    @media(min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
 
-    .app {
-      width: min(1100px, 100%);
-      margin: 0 auto;
-      padding: 16px;
-    }
+    .card { background: var(--card-bg); border-radius: 10px; padding: 10px; border: 1px solid #334155; }
+    .card h2 { font-size: 0.85rem; margin-bottom: 6px; color: var(--accent); }
 
-    header {
+    .video-container { position: relative; width: 100%; height: 260px; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    video { width: 100%; height: 100%; object-fit: contain; }
+    
+    .roi-overlay {
+      position: absolute;
+      top: 5%; left: 5%; width: 90%; height: 90%;
+      border: 2px dashed var(--warning);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+      pointer-events: none;
+      border-radius: 6px;
       display: flex;
-      justify-content: space-between;
-      gap: 12px;
       align-items: flex-start;
-      margin-bottom: 18px;
-    }
-
-    h1, h2, h3, p { margin-top: 0; }
-    h1 { font-size: clamp(26px, 5vw, 40px); margin-bottom: 4px; }
-    h2 { color: #60a5fa; }
-
-    .top-actions {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 10px;
-    }
-
-    button, .upload-label {
-      border: 0;
-      border-radius: 10px;
-      padding: 12px 16px;
-      color: white;
-      background: #475569;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
       justify-content: center;
-      gap: 7px;
     }
+    .roi-label { background: var(--warning); color: #000; font-size: 0.6rem; font-weight: bold; padding: 2px 6px; border-radius: 0 0 4px 4px; }
 
-    button:disabled { opacity: .45; cursor: not-allowed; }
-    .primary { background: var(--blue); }
-    .success { background: var(--green); }
-    .danger { background: var(--red); }
-    .warning { background: var(--orange); color: #111827; }
-    .purple { background: var(--purple); }
+    .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    button, label.btn-upload { background: var(--accent); color: white; border: none; padding: 7px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; cursor: pointer; display: inline-block; text-align: center; }
+    input[type="file"] { display: none; }
+    
+    .status-badge { display: inline-block; padding: 8px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 6px; width: 100%; text-align: center; }
+    .status-pass { background: var(--success); }
+    .status-fail { background: var(--danger); }
+    .status-empty { background: #334155; color: var(--text-muted); }
+    .status-standby { background: var(--warning); color: #000; }
 
-    input[type=file] { display: none; }
+    .slider-group { margin-top: 6px; font-size: 0.72rem; display: flex; align-items: center; gap: 6px; }
+    .slider-group input { flex-grow: 1; }
 
-    .counter {
-      min-width: 118px;
-      border: 2px solid var(--red);
-      border-radius: 14px;
-      padding: 9px 14px;
-      background: #28131b;
-      text-align: center;
-    }
+    .sample-strip { display: flex; gap: 6px; margin-top: 4px; overflow-x: auto; padding-bottom: 4px; min-height: 44px; align-items: center; }
+    .sample-thumb-good { width: 40px; height: 40px; border-radius: 4px; border: 2px solid var(--success); object-fit: cover; }
+    .sample-thumb-bad { width: 40px; height: 40px; border-radius: 4px; border: 2px solid var(--danger); object-fit: cover; }
 
-    .counter span {
-      display: block;
-      font-size: 12px;
-      color: #fecaca;
-    }
+    .log-list { max-height: 150px; overflow-y: auto; margin-top: 6px; }
+    .log-item { display: flex; gap: 8px; background: #090d16; padding: 6px; border-radius: 6px; margin-bottom: 4px; border-left: 4px solid var(--danger); align-items: center; }
+    .log-item img { width: 36px; height: 36px; object-fit: cover; border-radius: 4px; }
+    .log-info { font-size: 0.72rem; }
 
-    .counter strong {
-      font-size: 34px;
-      color: #f87171;
-    }
-
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 18px;
-    }
-
-    .camera-stage {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 4 / 3;
-      background: #000;
-      overflow: hidden;
-      border-radius: 12px;
-    }
-
-    video, #overlay {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-    }
-
-    video {
-      object-fit: contain;
-      background: black;
-    }
-
-    #overlay { pointer-events: none; }
-
-    .roi-box {
-      position: absolute;
-      border: 4px dashed var(--orange);
-      border-radius: 14px;
-      pointer-events: none;
-    }
-
-    .inspection-band {
-      position: absolute;
-      pointer-events: none;
-      border: 0;
-      background: transparent;
-    }
-
-    #entryBand {
-      border: 2px dashed rgba(59,130,246,.9);
-    }
-
-    #decisionBand {
-      border: 3px solid rgba(16,185,129,.95);
-      background: rgba(16,185,129,.07);
-    }
-
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .sliders {
-      display: grid;
-      gap: 12px;
-      margin-top: 14px;
-    }
-
-    .slider-row {
-      display: grid;
-      grid-template-columns: minmax(150px, 1fr) 2fr auto;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .status {
-      margin-top: 14px;
-      border-radius: 12px;
-      padding: 14px;
-      text-align: center;
-      font-size: clamp(18px, 4vw, 26px);
-      font-weight: 800;
-      background: #334155;
-    }
-
-    .status.ready { background: #1e3a5f; }
-    .status.pass { background: #065f46; }
-    .status.reject { background: #7f1d1d; }
-    .status.inspecting { background: #5b21b6; }
-
-    .debug-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .debug-card {
-      background: #020617;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      overflow: hidden;
-    }
-
-    .debug-card canvas {
-      width: 100%;
-      aspect-ratio: 1;
-      display: block;
-      background: #000;
-    }
-
-    .debug-card div {
-      padding: 8px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .banks {
-      display: grid;
-      gap: 18px;
-    }
-
-    .bank {
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .thumbs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      min-height: 64px;
-      margin: 10px 0;
-    }
-
-    .thumb {
-      width: 82px;
-      aspect-ratio: 1;
-      border-radius: 8px;
-      object-fit: cover;
-      border: 3px solid #64748b;
-    }
-
-    .thumb.belt { border-color: #38bdf8; }
-    .thumb.good { border-color: #34d399; }
-    .thumb.bad { border-color: #f87171; }
-
-    .helper { color: var(--muted); line-height: 1.45; }
-    .mini { font-size: 13px; color: var(--muted); }
-
-    .log {
-      display: grid;
-      gap: 10px;
-    }
-
-    .log-item {
-      display: grid;
-      grid-template-columns: 110px 1fr;
-      gap: 12px;
-      padding: 10px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--panel-2);
-    }
-
-    .log-item img {
-      width: 110px;
-      aspect-ratio: 1;
-      object-fit: cover;
-      border-radius: 8px;
-    }
-
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px,1fr));
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .metric {
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      text-align: center;
-    }
-
-    .metric strong { display: block; font-size: 20px; color: #60a5fa; }
-    .metric span { color: var(--muted); font-size: 12px; }
-
-    @media (max-width: 700px) {
-      .debug-grid { grid-template-columns: 1fr 1fr 1fr; }
-      .slider-row { grid-template-columns: 1fr; gap: 5px; }
-      .metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
-      header { align-items: stretch; }
-      .top-actions { width: 52%; }
-    }
-  
-    .settings-grid {
-      display:grid;
-      grid-template-columns:repeat(3,minmax(0,1fr));
-      gap:12px;
-      margin-top:14px;
-    }
-
-    .settings-grid label {
-      display:grid;
-      gap:6px;
-      color:var(--muted);
-      font-size:13px;
-    }
-
-    .settings-grid input,
-    .settings-grid select {
-      width:100%;
-      border:1px solid var(--line);
-      border-radius:8px;
-      padding:10px;
-      background:var(--panel-2);
-      color:var(--text);
-      font-size:15px;
-    }
-
-    @media (max-width:800px) {
-      .settings-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-    }
-
-    @media (max-width:520px) {
-      .settings-grid { grid-template-columns:1fr; }
-    }
-  
-    .settings-accordion {
-      display: grid;
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .settings-accordion details {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--panel-2);
-      overflow: hidden;
-    }
-
-    .settings-accordion summary {
-      list-style: none;
-      cursor: pointer;
-      padding: 14px 16px;
-      font-weight: 800;
-      color: #dbeafe;
-      user-select: none;
-      position: relative;
-    }
-
-    .settings-accordion summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .settings-accordion summary::after {
-      content: "＋";
-      position: absolute;
-      right: 16px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #60a5fa;
-      font-size: 22px;
-    }
-
-    .settings-accordion details[open] summary::after {
-      content: "−";
-    }
-
-    .settings-accordion details[open] summary {
-      border-bottom: 1px solid var(--line);
-      background: rgba(59,130,246,.08);
-    }
-
-    .settings-accordion .settings-grid {
-      padding: 14px;
-      margin-top: 0;
-    }
-
-    .settings-actions {
-      margin-top: 14px;
-    }
+    .debug-box { background: #000; padding: 6px; border-radius: 6px; margin-top: 8px; font-family: monospace; font-size: 0.65rem; color: #10b981; display: flex; justify-content: space-between; align-items: center; }
+    #debugCanvas { border: 1px solid #334155; width: 64px; height: 64px; image-rendering: pixelated; }
   </style>
 </head>
 <body>
-<div class="app">
+
   <header>
     <div>
-      <h1>Universal Line Inspector</h1>
-      <div class="helper">Fast Session Reset V4.3</div>
+      <h1>Gap-Resilient Inspector</h1>
     </div>
+    
+    <div class="header-actions">
+      <select id="profileSelect" class="profile-select" onchange="loadSelectedProfile()">
+        <option value="">-- Load Profile --</option>
+      </select>
 
-    <div class="top-actions">
-      <div class="counter">
-        <span>REJECTS</span>
-        <strong id="rejectCount">0</strong>
+      <button id="muteBtn" onclick="toggleMute()" style="background: #334155; padding: 5px 8px; font-size: 0.75rem;">🔊 Alarm</button>
+      
+      <div class="counter-box">
+        <div style="font-size: 0.6rem;">REJECTS:</div>
+        <div id="defectCount" class="counter-val">0</div>
+        <button onclick="resetCount()" style="background: var(--danger); padding: 2px 5px; font-size: 0.6rem;">Reset</button>
       </div>
-      <button id="resetRejectBtn">Reset</button>
-      <button id="alarmBtn">🔊 Alarm On</button>
     </div>
   </header>
 
-  <section class="panel">
-    <h2>Live Camera</h2>
-
-    <div id="cameraStage" class="camera-stage">
-      <video id="video" playsinline muted></video>
-      <canvas id="overlay"></canvas>
-      <div id="roiBox" class="roi-box"></div>
-      <div id="entryBand" class="inspection-band"></div><div id="decisionBand" class="inspection-band"></div>
-    </div>
-
-    <div class="controls">
-      <button id="rearCameraBtn" class="primary">Rear Camera</button>
-      <button id="frontCameraBtn" class="primary">Front Camera</button>
-      <button id="inspectionBtn" class="success">Start Inspection</button>
-      <button id="fullscreenBtn">Full Screen</button>
-    </div>
-
-    <div class="controls">
-      <label class="upload-label" style="background:#334155">
-        Conveyor direction
-        <select id="directionSelect" style="margin-left:8px;padding:7px;border-radius:7px">
-          <option value="down">Top → Bottom</option>
-          <option value="up">Bottom → Top</option>
-          <option value="right">Left → Right</option>
-          <option value="left">Right → Left</option>
-        </select>
-      </label>
-    </div>
-
-    <div class="controls">
-      <button id="fullRoiBtn">Full ROI</button>
-      <button id="verticalRoiBtn">Vertical Belt ROI</button>
-      <button id="horizontalRoiBtn">Horizontal Belt ROI</button>
-    </div>
-
-    <div class="sliders">
-      <div class="slider-row">
-        <label for="goodThreshold">Good-match tolerance</label>
-        <input id="goodThreshold" type="range" min="5" max="35" value="14" />
-        <span id="goodThresholdValue">14%</span>
+  <div class="grid">
+    <div class="card">
+      <h2>Live Stream</h2>
+      <div class="video-container">
+        <video id="webcam" autoplay playsinline muted></video>
+        <div class="roi-overlay">
+          <span class="roi-label">INSPECTION ZONE</span>
+        </div>
       </div>
-      <div class="slider-row">
-        <label for="pixelThreshold">Belt subtraction</label>
-        <input id="pixelThreshold" type="range" min="25" max="110" value="62" />
-        <span id="pixelThresholdValue">62</span>
+      
+      <div class="controls">
+        <button onclick="startCamera('environment')">Rear Cam</button>
+        <button onclick="startCamera('user')">Front Cam</button>
+        <button id="toggleScanBtn" onclick="toggleScanning()" style="background: var(--success);">Start Inspection</button>
       </div>
-      <div class="slider-row">
-        <label for="minimumArea">Minimum object size</label>
-        <input id="minimumArea" type="range" min="2" max="30" value="6" />
-        <span id="minimumAreaValue">6%</span>
+
+      <div class="slider-group">
+        <label>Tolerance Threshold:</label>
+        <input type="range" id="sensitivity" min="1" max="50" value="15">
+        <span id="sensVal">15%</span>
+      </div>
+
+      <div class="slider-group">
+        <label>Trigger High (Entry):</label>
+        <input type="range" id="presenceSens" min="1" max="30" value="4">
+        <span id="presenceVal">4%</span>
+      </div>
+
+      <div id="liveStatus" class="status-badge status-standby">STATUS: STANDBY</div>
+
+      <div class="debug-box">
+        <div>
+          <div>STATE: <span id="debugState" style="color:#f59e0b;">CLEAR</span></div>
+          <div>DELTA: <span id="debugDeltaVal">0.0</span></div>
+          <div>BASE: <span id="debugBaseVal">0.0</span></div>
+        </div>
+        <canvas id="debugCanvas" width="64" height="64"></canvas>
       </div>
     </div>
 
-    <div id="status" class="status ready">READY — CALIBRATE FIRST</div>
+    <div class="card">
+      <h2>Profiles & Samples</h2>
 
-    <div class="metrics">
-      <div class="metric"><strong id="fpsMetric">0</strong><span>Processing FPS</span></div>
-      <div class="metric"><strong id="trackMetric">0</strong><span>Active tracks</span></div>
-      <div class="metric"><strong id="latencyMetric">—</strong><span>Last decision</span></div>
-      <div class="metric"><strong id="decisionMetric">—</strong><span>Last result</span></div>
-      <div class="metric"><strong id="modelSpreadMetric">—</strong><span>Model spread / limit</span></div>
-      <div class="metric"><strong id="qualityMetric">—</strong><span>Frame quality</span></div>
-    </div>
-
-    <div class="debug-grid">
-      <div class="debug-card"><canvas id="roiCanvas"></canvas><div>ROI</div></div>
-      <div class="debug-card"><canvas id="maskCanvas"></canvas><div>Foreground Mask</div></div>
-      <div class="debug-card"><canvas id="productCanvas"></canvas><div>Detected Product</div></div>
-    </div>
-  </section>
-
-
-
-  <section class="panel">
-    <h2>Advanced Inspection Settings</h2>
-
-    <div class="controls">
-      <button id="presetFastBtn" class="primary">Fast Line Preset</button>
-      <button id="presetBalancedBtn" class="success">Balanced Preset</button>
-      <button id="presetAccurateBtn" class="purple">Accuracy Preset</button>
-    </div>
-
-    <p class="helper">
-      Presets are always visible. Detailed settings stay closed by default and
-      only expand when you need to adjust them.
-    </p>
-
-    <div class="settings-accordion">
-      <details>
-        <summary>Camera & Processing</summary>
-        <div class="settings-grid">
-          <label>Processing resolution
-            <select id="processingPreset">
-              <option value="256x192">Fast — 256×192</option>
-              <option value="320x240" selected>Balanced — 320×240</option>
-              <option value="384x288">Detailed — 384×288</option>
-            </select>
-          </label>
-
-          <label>Target processing FPS
-            <input id="targetFps" type="number" min="8" max="60" value="26">
-          </label>
-
-          <label>Minimum sharpness
-            <input id="cfgMinSharpness" type="number" min="0" max="80" step="0.5" value="5">
-          </label>
-
-          <label>Border safety margin
-            <input id="cfgBorderMargin" type="number" min="0" max="20" value="3">
-          </label>
+      <div style="margin-bottom: 6px; background: #0f172a; padding: 6px; border-radius: 6px;">
+        <strong style="font-size: 0.72rem; color: var(--accent);">Profile Memory</strong>
+        <div class="controls" style="margin-top: 4px;">
+          <button onclick="saveCurrentProfile()" style="background: #2563eb;">💾 Save Profile</button>
+          <button onclick="deleteSelectedProfile()" style="background: #475569;">🗑️ Delete</button>
         </div>
-      </details>
-
-      <details>
-        <summary>Tracking & Back-to-Back Products</summary>
-        <p class="helper settings-note">
-          One physical object receives one inspection ID. A new ID is armed only
-          after a visible belt gap.
-        </p>
-        <div class="settings-grid">
-          <label>Track match distance
-            <input id="cfgMatchDistance" type="number" min="30" max="180" value="105">
-          </label>
-
-          <label>Track missed-frame allowance
-            <input id="cfgMaxMisses" type="number" min="1" max="15" value="4">
-          </label>
-
-          <label>Minimum track age
-            <input id="cfgMinTrackAge" type="number" min="1" max="8" value="1">
-          </label>
-
-          <label>Same-product lockout
-            <input id="cfgLockMs" type="number" min="80" max="1200" step="20" value="320">
-          </label>
-
-          <label>Minimum product separation
-            <input id="cfgMinSeparation" type="number" min="2" max="40" value="7">
-          </label>
-
-          <label>Maximum active tracks
-            <input id="cfgMaxTracks" type="number" min="2" max="30" value="12">
-          </label>
-
-          <label>Clear gap frames before next product
-            <input id="cfgClearGapFrames" type="number" min="1" max="20" value="3">
-          </label>
-
-          <label>Merge nearby object fragments
-            <input id="cfgMergeDistance" type="number" min="0" max="80" value="22">
-          </label>
-
-          <label>Clear-gap coverage threshold (%)
-            <input id="cfgGapCoverageThreshold" type="number" min="0.2" max="10" step="0.1" value="1.8">
-          </label>
-
-          <label>Product trigger coverage (%)
-            <input id="cfgDecisionZoneCoverage" type="number" min="0.5" max="20" step="0.1" value="3.5">
-          </label>
-        </div>
-      </details>
-
-      <details>
-        <summary>Inspection Zones</summary>
-        <div class="settings-grid">
-          <label>Entry-zone position
-            <input id="cfgEntryZone" type="number" min="5" max="35" value="18">
-          </label>
-
-          <label>Inspection-zone start
-            <input id="cfgDecisionStart" type="number" min="10" max="70" value="34">
-          </label>
-
-          <label>Inspection-zone end
-            <input id="cfgDecisionEnd" type="number" min="30" max="95" value="70">
-          </label>
-        </div>
-      </details>
-
-      <details>
-        <summary>Best-Frame Voting</summary>
-        <div class="settings-grid">
-          <label>Best frames per product
-            <input id="cfgVoteFrames" type="number" min="1" max="7" value="3">
-          </label>
-
-          <label>PASS votes required
-            <input id="cfgPassVotes" type="number" min="1" max="7" value="2">
-          </label>
-
-          <label>Minimum collected frames
-            <input id="cfgMinCollectedFrames" type="number" min="1" max="12" value="3">
-          </label>
-
-          <label>Maximum wait frames
-            <input id="cfgMaxWaitFrames" type="number" min="3" max="30" value="10">
-          </label>
-
-          <label>Upside-down veto margin
-            <input id="cfgUpsideDownMargin" type="number" min="0" max="15" step="0.5" value="2">
-          </label>
-
-          <label>Known-reject veto margin
-            <input id="cfgBadVetoMargin" type="number" min="0" max="15" step="0.5" value="2">
-          </label>
-        </div>
-      </details>
-
-      <details>
-        <summary>Object Extraction & Mask</summary>
-        <div class="settings-grid">
-          <label>Morphology strength
-            <select id="cfgMorphology">
-              <option value="0">Off</option>
-              <option value="1" selected>Light</option>
-              <option value="2">Medium</option>
-            </select>
-          </label>
-
-          <label>Rotation normalization
-            <select id="cfgRotationNormalize">
-              <option value="1" selected>On</option>
-              <option value="0">Off</option>
-            </select>
-          </label>
-        </div>
-      </details>
-
-      <details>
-        <summary>Learned Model Sensitivity</summary>
-        <div class="settings-grid">
-          <label>Model acceptance multiplier
-            <input id="cfgModelMultiplier" type="number" min="1" max="5" step="0.1" value="2.2">
-          </label>
-
-          <label>Minimum model threshold
-            <input id="cfgModelFloor" type="number" min="2" max="35" step="0.5" value="8">
-          </label>
-
-          <label>Maximum model threshold
-            <input id="cfgModelCeiling" type="number" min="8" max="60" step="0.5" value="28">
-          </label>
-        </div>
-      </details>
-    </div>
-
-    <div class="controls settings-actions">
-      <button id="applyAdvancedBtn" class="warning">Apply Settings</button>
-      <button id="saveSettingsBtn">Save Settings</button>
-      <button id="resetAdvancedBtn">Reset Settings</button>
-    </div>
-
-    <p id="advancedMessage" class="helper">
-      Balanced settings active.
-    </p>
-  </section>
-
-  <section class="panel">
-    <h2>Calibration</h2>
-    <div class="banks">
-      <div class="bank">
-        <h3>Empty Belt Bank (<span id="beltCount">0</span>)</h3>
-        <div id="beltThumbs" class="thumbs"></div>
-        <div class="controls">
-          <button id="snapBeltBtn">Capture Belt</button>
-          <label class="upload-label">Upload Belt<input id="uploadBelt" type="file" accept="image/*" multiple></label>
-          <button id="clearBeltBtn">Clear</button>
-          <button id="burstBeltBtn">Capture Belt Burst</button>
+      </div>
+      
+      <div style="margin-bottom: 4px;">
+        <strong style="font-size: 0.72rem; color: var(--text-muted);">1. Belt Baseline</strong>
+        <div class="controls" style="margin-top: 2px;">
+          <button onclick="captureBeltFromCamera()" style="background: #334155;">Snap Empty Belt Baseline</button>
         </div>
       </div>
 
-      <div class="bank">
-        <h3 style="color:#34d399">Good Sample Bank (<span id="goodCount">0</span>)</h3>
-        <div id="goodThumbs" class="thumbs"></div>
-        <div class="controls">
-          <button id="snapGoodBtn" class="success">Capture Good</button>
-          <label class="upload-label success">Upload Good<input id="uploadGood" type="file" accept="image/*" multiple></label>
-          <button id="clearGoodBtn">Clear</button>
-          <button id="burstGoodBtn" class="success">Capture Good Burst</button>
+      <hr style="border: 0; border-top: 1px solid #334155; margin: 4px 0;">
+
+      <div style="margin-bottom: 4px;">
+        <strong style="font-size: 0.72rem; color: var(--success);">2. Target Samples (<span id="goodCount">0</span>)</strong>
+        <div id="goodStrip" class="sample-strip"></div>
+        <div class="controls" style="margin-top: 2px;">
+          <button onclick="captureGoodSample()" style="background: var(--success);">+ Snap Good</button>
+          <label class="btn-upload" style="background: var(--success);">
+            📁 Upload
+            <input type="file" accept="image/*" multiple onchange="uploadGoodImage(event)">
+          </label>
+          <button onclick="clearGoodSamples()" style="background: #334155;">Clear</button>
         </div>
       </div>
 
-      <div class="bank">
-        <h3 style="color:#f87171">Known Reject Bank — Optional (<span id="badCount">0</span>)</h3>
-        <div id="badThumbs" class="thumbs"></div>
-        <div class="controls">
-          <button id="snapBadBtn" class="danger">Capture Reject</button>
-          <label class="upload-label danger">Upload Reject<input id="uploadBad" type="file" accept="image/*" multiple></label>
-          <button id="clearBadBtn">Clear</button>
-          <button id="burstBadBtn" class="danger">Capture Reject Burst</button>
+      <hr style="border: 0; border-top: 1px solid #334155; margin: 4px 0;">
+
+      <div>
+        <strong style="font-size: 0.72rem; color: var(--danger);">3. Defect Bank (<span id="badCount">0</span>)</strong>
+        <div id="badStrip" class="sample-strip"></div>
+        <div class="controls" style="margin-top: 2px;">
+          <button onclick="captureBadSample()" style="background: var(--danger);">+ Snap Reject</button>
+          <label class="btn-upload" style="background: var(--danger);">
+            📁 Upload
+            <input type="file" accept="image/*" multiple onchange="uploadBadImage(event)">
+          </label>
+          <button onclick="clearBadSamples()" style="background: #334155;">Clear</button>
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="controls">
-      <button id="calibrateBtn" class="warning">Calibrate System</button>
-      <button id="saveProfileBtn">Save Profile</button>
-      <button id="loadProfileBtn">Load Profile</button>
-      <button id="clearProfileBtn">Delete Saved Profile</button>
-    </div>
+  <div class="card" style="margin-top: 10px;">
+    <h2>Defect Audit Log</h2>
+    <div id="logList" class="log-list"></div>
+  </div>
 
-    <p id="calibrationMessage" class="helper">
-      The mask is used only to locate the product. Matching uses the original colour camera crop. A new product session starts after the decision band and ROI return below the clear-gap coverage threshold.
-    </p>
-  </section>
+  <canvas id="procCanvas" width="64" height="64" style="display:none;"></canvas>
 
-  <section class="panel">
-    <h2>Activity Log</h2>
-    <div id="activityLog" class="log"></div>
-  </section>
-</div>
+  <script>
+    const video = document.getElementById('webcam');
+    const procCanvas = document.getElementById('procCanvas');
+    const procCtx = procCanvas.getContext('2d', { willReadFrequently: true });
+    
+    const debugCanvas = document.getElementById('debugCanvas');
+    const debugCtx = debugCanvas.getContext('2d');
+    
+    const sensitivityInput = document.getElementById('sensitivity');
+    const sensValDisplay = document.getElementById('sensVal');
+    const presenceInput = document.getElementById('presenceSens');
+    const presenceValDisplay = document.getElementById('presenceVal');
+    
+    const liveStatus = document.getElementById('liveStatus');
+    const logList = document.getElementById('logList');
+    const muteBtn = document.getElementById('muteBtn');
+    const profileSelect = document.getElementById('profileSelect');
 
-<script>
-"use strict";
+    let isScanning = false;
+    let defectCount = 0;
+    
+    let goodHistograms = [];
+    let goodThumbnails = [];
+    let badHistograms = [];
+    let badThumbnails = [];
+    let beltBaselineDensity = 0;
 
-let PROCESS_W = 256;
-let PROCESS_H = 192;
+    // STATE MACHINE FLAGS
+    let objectInZone = false; 
+    let currentObjectEvaluated = false;
+    
+    let isMuted = false;
+    let animationFrameId = null;
 
-const DEFAULT_CONFIG = Object.freeze({
-  targetFps: 24,
-  matchDistance: 105,
-  maxMisses: 4,
-  minTrackAge: 1,
-  decisionLockMs: 320,
-  maxLogItems: 30,
-  burstFrames: 12,
-  entryZone: 0.18,
-  decisionStart: 0.34,
-  decisionEnd: 0.70,
-  minSeparation: 7,
-  maxTracks: 12,
-  minSharpness: 5,
-  borderMargin: 0.03,
-  voteFrames: 3,
-  passVotes: 2,
-  upsideDownMargin: 2,
-  badVetoMargin: 2,
-  morphology: 1,
-  modelMultiplier: 2.2,
-  modelFloor: 8,
-  modelCeiling: 28,
-  rotationNormalize: 1,
-  clearGapFrames: 3,
-  mergeDistance: 22,
-  minCollectedFrames: 3,
-  maxWaitFrames: 8,
-  gapCoverageThreshold: 0.018,
-  decisionZoneCoverage: 0.035
-});
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-let CONFIG = { ...DEFAULT_CONFIG };
-
-
-const video = document.getElementById("video");
-const stage = document.getElementById("cameraStage");
-const overlay = document.getElementById("overlay");
-const overlayCtx = overlay.getContext("2d");
-const roiBox = document.getElementById("roiBox");
-
-const roiCanvas = document.getElementById("roiCanvas");
-const maskCanvas = document.getElementById("maskCanvas");
-const productCanvas = document.getElementById("productCanvas");
-
-const roiCtx = roiCanvas.getContext("2d", { willReadFrequently: true });
-const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
-const productCtx = productCanvas.getContext("2d", { willReadFrequently: true });
-
-const workCanvas = document.createElement("canvas");
-workCanvas.width = PROCESS_W;
-workCanvas.height = PROCESS_H;
-const workCtx = workCanvas.getContext("2d", { willReadFrequently: true });
-
-let stream = null;
-let running = false;
-let calibrated = false;
-let animationId = 0;
-let videoFrameCallbackId = null;
-let lastLoopAt = 0;
-let lastFpsAt = performance.now();
-let processedFrames = 0;
-let alarmEnabled = true;
-let rejectCount = 0;
-
-let ROI = { x: 0.02, y: 0.02, width: 0.96, height: 0.96 };
-
-let beltSamples = [];
-let goodSamples = [];
-let badSamples = [];
-let beltModel = null;
-let goodModel = null;
-let badModel = null;
-
-let nextTrackId = 1;
-const tracks = new Map();
-const recentLocks = [];
-let clearGapCounter = 0;
-let productGateArmed = true;
-
-let conveyorDirection = "down";
-
-
-const $ = id => document.getElementById(id);
-
-function cloneImageData(imageData) {
-  return new ImageData(
-    new Uint8ClampedArray(imageData.data),
-    imageData.width,
-    imageData.height
-  );
-}
-
-function imageDataToUrl(imageData, quality = 0.82) {
-  const canvas = document.createElement("canvas");
-  canvas.width = imageData.width;
-  canvas.height = imageData.height;
-  canvas.getContext("2d").putImageData(imageData, 0, 0);
-  return canvas.toDataURL("image/jpeg", quality);
-}
-
-function setStatus(message, type = "ready") {
-  const node = $("status");
-  node.textContent = message;
-  node.className = `status ${type}`;
-}
-
-function updateTopUI() {
-  $("rejectCount").textContent = String(rejectCount);
-  $("alarmBtn").textContent = alarmEnabled ? "🔊 Alarm On" : "🔇 Alarm Muted";
-}
-
-function beep() {
-  if (!alarmEnabled) return;
-  try {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    const context = new AudioContextClass();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-
-    oscillator.type = "square";
-    oscillator.frequency.value = 880;
-    gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.3, context.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.45);
-
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.48);
-  } catch (error) {
-    console.warn("Alarm unavailable:", error);
-  }
-}
-
-function updateSliderLabels() {
-  $("goodThresholdValue").textContent = `${$("goodThreshold").value}%`;
-  $("pixelThresholdValue").textContent = $("pixelThreshold").value;
-  $("minimumAreaValue").textContent = `${$("minimumArea").value}%`;
-}
-
-function resizeStage() {
-  const w = video.videoWidth || 4;
-  const h = video.videoHeight || 3;
-  stage.style.aspectRatio = `${w} / ${h}`;
-
-  const rect = stage.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-
-  overlay.width = Math.round(rect.width * dpr);
-  overlay.height = Math.round(rect.height * dpr);
-  overlay.style.width = `${rect.width}px`;
-  overlay.style.height = `${rect.height}px`;
-  overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  updateRoiOverlay();
-}
-
-function displayedVideoRect() {
-  const stageW = stage.clientWidth;
-  const stageH = stage.clientHeight;
-  const sourceW = video.videoWidth || 4;
-  const sourceH = video.videoHeight || 3;
-  const scale = Math.min(stageW / sourceW, stageH / sourceH);
-  const drawW = sourceW * scale;
-  const drawH = sourceH * scale;
-
-  return {
-    x: (stageW - drawW) / 2,
-    y: (stageH - drawH) / 2,
-    width: drawW,
-    height: drawH
-  };
-}
-
-function updateRoiOverlay() {
-  const rect = displayedVideoRect();
-  const left = rect.x + rect.width * ROI.x;
-  const top = rect.y + rect.height * ROI.y;
-  const width = rect.width * ROI.width;
-  const height = rect.height * ROI.height;
-
-  roiBox.style.left = `${left}px`;
-  roiBox.style.top = `${top}px`;
-  roiBox.style.width = `${width}px`;
-  roiBox.style.height = `${height}px`;
-
-  const entryBand = $("entryBand");
-  const decisionBand = $("decisionBand");
-
-  if (conveyorDirection === "down" || conveyorDirection === "up") {
-    const entryRatio = conveyorDirection === "down"
-      ? CONFIG.entryZone
-      : 1 - CONFIG.entryZone;
-
-    entryBand.style.left = `${left}px`;
-    entryBand.style.width = `${width}px`;
-    entryBand.style.height = "0px";
-    entryBand.style.top = `${top + height * entryRatio}px`;
-
-    decisionBand.style.left = `${left}px`;
-    decisionBand.style.width = `${width}px`;
-    decisionBand.style.top = `${top + height * CONFIG.decisionStart}px`;
-    decisionBand.style.height =
-      `${height * (CONFIG.decisionEnd - CONFIG.decisionStart)}px`;
-  } else {
-    const entryRatio = conveyorDirection === "right"
-      ? CONFIG.entryZone
-      : 1 - CONFIG.entryZone;
-
-    entryBand.style.top = `${top}px`;
-    entryBand.style.height = `${height}px`;
-    entryBand.style.width = "0px";
-    entryBand.style.left = `${left + width * entryRatio}px`;
-
-    decisionBand.style.top = `${top}px`;
-    decisionBand.style.height = `${height}px`;
-    decisionBand.style.left = `${left + width * CONFIG.decisionStart}px`;
-    decisionBand.style.width =
-      `${width * (CONFIG.decisionEnd - CONFIG.decisionStart)}px`;
-  }
-}
-
-async function startCamera(facingMode) {
-  try {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+    function triggerAlarm() {
+      if (isMuted) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.15);
     }
 
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: facingMode },
-        width: { ideal: 1920 },
-        height: { ideal: 1440 },
-        frameRate: { ideal: 60, min: 24 }
-      },
-      audio: false
-    });
-
-    video.srcObject = stream;
-    await video.play();
-    resizeStage();
-    setStatus(calibrated ? "READY FOR PRODUCT" : "CAMERA READY — CALIBRATE", "ready");
-  } catch (error) {
-    setStatus(`CAMERA ERROR — ${error.message}`, "reject");
-  }
-}
-
-function setRoi(type) {
-  if (type === "vertical") {
-    ROI = { x: 0.16, y: 0.02, width: 0.68, height: 0.96 };
-  } else if (type === "horizontal") {
-    ROI = { x: 0.02, y: 0.17, width: 0.96, height: 0.66 };
-  } else {
-    ROI = { x: 0.02, y: 0.02, width: 0.96, height: 0.96 };
-  }
-
-  calibrated = false;
-  beltModel = null;
-  goodModel = null;
-  badModel = null;
-  tracks.clear();
-  updateRoiOverlay();
-  setStatus("ROI CHANGED — RECALIBRATE", "inspecting");
-}
-
-function captureRoi() {
-  if (!video.videoWidth || !video.videoHeight) {
-    throw new Error("Camera is not ready");
-  }
-
-  const sx = Math.round(video.videoWidth * ROI.x);
-  const sy = Math.round(video.videoHeight * ROI.y);
-  const sw = Math.max(1, Math.round(video.videoWidth * ROI.width));
-  const sh = Math.max(1, Math.round(video.videoHeight * ROI.height));
-
-  workCtx.clearRect(0, 0, PROCESS_W, PROCESS_H);
-  workCtx.drawImage(video, sx, sy, sw, sh, 0, 0, PROCESS_W, PROCESS_H);
-  const imageData = workCtx.getImageData(0, 0, PROCESS_W, PROCESS_H);
-
-  roiCanvas.width = PROCESS_W;
-  roiCanvas.height = PROCESS_H;
-  roiCtx.putImageData(imageData, 0, 0);
-
-  return imageData;
-}
-
-function featureVector(imageData) {
-  const bins = 8;
-  const hist = new Float32Array(24);
-  const grid = 6;
-  const spatial = new Float32Array(grid * grid * 4);
-  const counts = new Uint32Array(grid * grid);
-  const hashW = 16;
-  const hash = new Float32Array(hashW * hashW);
-  const hashCounts = new Uint16Array(hashW * hashW);
-  const horizontalProjection = new Float32Array(18);
-  const verticalProjection = new Float32Array(24);
-
-  const { width, height, data } = imageData;
-  let total = 0;
-  let foreground = 0;
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-      const isForeground = r + g + b > 20;
-
-      if (isForeground) {
-        foreground++;
-        horizontalProjection[Math.min(17, Math.floor(y / height * 18))]++;
-        verticalProjection[Math.min(23, Math.floor(x / width * 24))]++;
-      }
-
-      hist[Math.min(7, r >> 5)]++;
-      hist[8 + Math.min(7, g >> 5)]++;
-      hist[16 + Math.min(7, b >> 5)]++;
-
-      const gx = Math.min(grid - 1, Math.floor(x / width * grid));
-      const gy = Math.min(grid - 1, Math.floor(y / height * grid));
-      const gi = gy * grid + gx;
-      const o = gi * 4;
-
-      spatial[o] += r / 255;
-      spatial[o + 1] += g / 255;
-      spatial[o + 2] += b / 255;
-      spatial[o + 3] += gray / 255;
-      counts[gi]++;
-
-      const hx = Math.min(hashW - 1, Math.floor(x / width * hashW));
-      const hy = Math.min(hashW - 1, Math.floor(y / height * hashW));
-      const hi = hy * hashW + hx;
-      hash[hi] += gray;
-      hashCounts[hi]++;
-      total++;
+    function toggleMute() {
+      isMuted = !isMuted;
+      muteBtn.innerText = isMuted ? "🔇 Muted" : "🔊 Alarm";
+      muteBtn.style.background = isMuted ? "var(--danger)" : "#334155";
     }
-  }
 
-  for (let i = 0; i < hist.length; i++) hist[i] /= Math.max(1, total);
-
-  for (let i = 0; i < counts.length; i++) {
-    const c = Math.max(1, counts[i]);
-    const o = i * 4;
-    spatial[o] /= c;
-    spatial[o + 1] /= c;
-    spatial[o + 2] /= c;
-    spatial[o + 3] /= c;
-  }
-
-  for (let i = 0; i < hash.length; i++) {
-    hash[i] /= Math.max(1, hashCounts[i]);
-  }
-
-  const mean = hash.reduce((sum, value) => sum + value, 0) / hash.length;
-  const bits = Array.from(hash, value => value >= mean ? 1 : 0);
-
-  const normalizeProjection = projection => {
-    const max = Math.max(1, ...projection);
-    return Array.from(projection, value => value / max);
-  };
-
-  return {
-    version: 2,
-    hist: Array.from(hist),
-    spatial: Array.from(spatial),
-    bits,
-    horizontalProjection: normalizeProjection(horizontalProjection),
-    verticalProjection: normalizeProjection(verticalProjection),
-    occupancy: foreground / Math.max(1, total)
-  };
-}
-
-function averageAbs(a, b) {
-  let total = 0;
-  const n = Math.min(a.length, b.length);
-  for (let i = 0; i < n; i++) total += Math.abs(a[i] - b[i]);
-  return n ? total / n : 1;
-}
-
-function featureDifference(a, b) {
-  if (!a || !b || a.version !== 2 || b.version !== 2) return 100;
-
-  let hist = 0;
-  for (let i = 0; i < a.hist.length; i++) {
-    hist += Math.abs(a.hist[i] - b.hist[i]);
-  }
-
-  let hashDiff = 0;
-  for (let i = 0; i < a.bits.length; i++) {
-    if (a.bits[i] !== b.bits[i]) hashDiff++;
-  }
-
-  const histScore = Math.min(100, hist / 2 * 100);
-  const spatialScore = Math.min(100, averageAbs(a.spatial, b.spatial) * 100);
-  const hashScore = hashDiff / a.bits.length * 100;
-  const horizontalScore =
-    Math.min(100, averageAbs(a.horizontalProjection, b.horizontalProjection) * 100);
-  const verticalScore =
-    Math.min(100, averageAbs(a.verticalProjection, b.verticalProjection) * 100);
-  const occupancyScore =
-    Math.min(100, Math.abs(a.occupancy - b.occupancy) * 160);
-
-  return (
-    histScore * 0.12 +
-    spatialScore * 0.30 +
-    hashScore * 0.24 +
-    horizontalScore * 0.12 +
-    verticalScore * 0.12 +
-    occupancyScore * 0.10
-  );
-}
-
-function nearest(feature, samples) {
-  let difference = Infinity;
-  let index = -1;
-
-  samples.forEach((sample, i) => {
-    const value = featureDifference(feature, sample.feature);
-    if (value < difference) {
-      difference = value;
-      index = i;
+    function resetCount() {
+      defectCount = 0;
+      document.getElementById('defectCount').innerText = '0';
+      logList.innerHTML = '';
     }
-  });
 
-  return { difference, index };
-}
+    sensitivityInput.oninput = () => sensValDisplay.innerText = `${sensitivityInput.value}%`;
+    presenceInput.oninput = () => presenceValDisplay.innerText = `${presenceInput.value}%`;
 
-function median(values) {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2
-    ? sorted[middle]
-    : (sorted[middle - 1] + sorted[middle]) / 2;
-}
-
-function buildReferenceModel(samples) {
-  const features = samples
-    .map(sample => sample.feature)
-    .filter(feature => feature?.version === 2);
-
-  if (!features.length) return null;
-
-  const totals = features.map((feature, index) =>
-    features.reduce(
-      (sum, other, otherIndex) =>
-        sum + (index === otherIndex ? 0 : featureDifference(feature, other)),
-      0
-    )
-  );
-
-  const medoidIndex = totals.indexOf(Math.min(...totals));
-  const medoid = features[medoidIndex];
-  const distances = features.map(feature => featureDifference(feature, medoid));
-  const spread = median(distances);
-  const deviations = distances.map(value => Math.abs(value - spread));
-  const mad = median(deviations);
-
-  const threshold = Math.min(
-    CONFIG.modelCeiling,
-    Math.max(
-      CONFIG.modelFloor,
-      spread + Math.max(1.5, mad) * CONFIG.modelMultiplier
-    )
-  );
-
-  return {
-    medoid,
-    threshold,
-    spread,
-    mad,
-    sampleCount: features.length
-  };
-}
-
-function modelDifference(feature, model) {
-  return model ? featureDifference(feature, model.medoid) : Infinity;
-}
-
-
-function rotate180(imageData) {
-  const output = new ImageData(imageData.width, imageData.height);
-  const pixels = imageData.width * imageData.height;
-
-  for (let p = 0; p < pixels; p++) {
-    const source = p * 4;
-    const target = (pixels - 1 - p) * 4;
-
-    output.data[target] = imageData.data[source];
-    output.data[target + 1] = imageData.data[source + 1];
-    output.data[target + 2] = imageData.data[source + 2];
-    output.data[target + 3] = imageData.data[source + 3];
-  }
-
-  return output;
-}
-
-function buildBeltModel() {
-  const size = PROCESS_W * PROCESS_H * 3;
-  const model = new Float32Array(size);
-
-  for (const sample of beltSamples) {
-    const data = sample.imageData.data;
-    for (let p = 0; p < PROCESS_W * PROCESS_H; p++) {
-      const i = p * 4;
-      const m = p * 3;
-      model[m] += data[i];
-      model[m + 1] += data[i + 1];
-      model[m + 2] += data[i + 2];
-    }
-  }
-
-  for (let i = 0; i < size; i++) model[i] /= beltSamples.length;
-  beltModel = model;
-}
-
-function createMask(imageData) {
-  const threshold = Number($("pixelThreshold").value);
-  const mask = new Uint8Array(PROCESS_W * PROCESS_H);
-
-  for (let p = 0; p < mask.length; p++) {
-    const i = p * 4;
-    const m = p * 3;
-    const dr = imageData.data[i] - beltModel[m];
-    const dg = imageData.data[i + 1] - beltModel[m + 1];
-    const db = imageData.data[i + 2] - beltModel[m + 2];
-    const distance = Math.sqrt(dr * dr + dg * dg + db * db);
-    mask[p] = distance >= threshold ? 255 : 0;
-  }
-
-  const cleaned = new Uint8Array(mask.length);
-
-  if (CONFIG.morphology === 0) {
-    cleaned.set(mask);
-  } else {
-    const requiredOn = CONFIG.morphology === 1 ? 3 : 4;
-    const requiredFill = CONFIG.morphology === 1 ? 7 : 6;
-
-    for (let y = 1; y < PROCESS_H - 1; y++) {
-      for (let x = 1; x < PROCESS_W - 1; x++) {
-        let neighbours = 0;
-
-        for (let oy = -1; oy <= 1; oy++) {
-          for (let ox = -1; ox <= 1; ox++) {
-            if (mask[(y + oy) * PROCESS_W + x + ox]) neighbours++;
-          }
-        }
-
-        cleaned[y * PROCESS_W + x] =
-          mask[y * PROCESS_W + x]
-            ? (neighbours >= requiredOn ? 255 : 0)
-            : (neighbours >= requiredFill ? 255 : 0);
-      }
-    }
-  }
-
-  const maskImage = maskCtx.createImageData(PROCESS_W, PROCESS_H);
-  for (let p = 0; p < cleaned.length; p++) {
-    const v = cleaned[p];
-    const i = p * 4;
-    maskImage.data[i] = v;
-    maskImage.data[i + 1] = v;
-    maskImage.data[i + 2] = v;
-    maskImage.data[i + 3] = 255;
-  }
-
-  maskCanvas.width = PROCESS_W;
-  maskCanvas.height = PROCESS_H;
-  maskCtx.putImageData(maskImage, 0, 0);
-
-  return cleaned;
-}
-
-function components(mask) {
-  const visited = new Uint8Array(mask.length);
-  const result = [];
-  const minArea = Number($("minimumArea").value) / 100 * PROCESS_W * PROCESS_H;
-
-  for (let y = 0; y < PROCESS_H; y++) {
-    for (let x = 0; x < PROCESS_W; x++) {
-      const start = y * PROCESS_W + x;
-      if (!mask[start] || visited[start]) continue;
-
-      const stack = [start];
-      visited[start] = 1;
-      let count = 0;
-      let minX = x, maxX = x, minY = y, maxY = y;
-      let sumX = 0, sumY = 0, sumXX = 0, sumYY = 0, sumXY = 0;
-
-      while (stack.length) {
-        const p = stack.pop();
-        const px = p % PROCESS_W;
-        const py = Math.floor(p / PROCESS_W);
-        count++;
-        sumX += px;
-        sumY += py;
-        sumXX += px * px;
-        sumYY += py * py;
-        sumXY += px * py;
-
-        minX = Math.min(minX, px);
-        maxX = Math.max(maxX, px);
-        minY = Math.min(minY, py);
-        maxY = Math.max(maxY, py);
-
-        const neighbours = [
-          p - 1, p + 1, p - PROCESS_W, p + PROCESS_W
-        ];
-
-        for (const n of neighbours) {
-          if (n < 0 || n >= mask.length || visited[n] || !mask[n]) continue;
-          const nx = n % PROCESS_W;
-          const ny = Math.floor(n / PROCESS_W);
-          if (Math.abs(nx - px) + Math.abs(ny - py) !== 1) continue;
-          visited[n] = 1;
-          stack.push(n);
-        }
-      }
-
-      const width = maxX - minX + 1;
-      const height = maxY - minY + 1;
-      const boxArea = width * height;
-      const fill = count / boxArea;
-
-      if (
-        count >= minArea &&
-        fill >= 0.12 &&
-        width >= PROCESS_W * 0.12 &&
-        height >= PROCESS_H * 0.12 &&
-        boxArea <= PROCESS_W * PROCESS_H * 0.85
-      ) {
-        const centroidX = sumX / count;
-        const centroidY = sumY / count;
-        const covXX = sumXX / count - centroidX * centroidX;
-        const covYY = sumYY / count - centroidY * centroidY;
-        const covXY = sumXY / count - centroidX * centroidY;
-        const angle = 0.5 * Math.atan2(2 * covXY, covXX - covYY);
-
-        result.push({
-          x: minX, y: minY, width, height, count, fill,
-          centreX: centroidX,
-          centreY: centroidY,
-          angle
+    async function startCamera(facingMode = 'environment') {
+      if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facingMode, width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
         });
+        video.srcObject = stream;
+        video.onloadedmetadata = () => video.play();
+      } catch (err) {
+        alert("Camera error: " + err.message);
       }
     }
-  }
 
-  return result.sort((a, b) => b.count - a.count).slice(0, 6);
-}
+    function captureROI(source) {
+      const sw = source.videoWidth || source.width || 640;
+      const sh = source.videoHeight || source.height || 480;
+      
+      const sx = sw * 0.05;
+      const sy = sh * 0.05;
+      const sWidth = sw * 0.90;
+      const sHeight = sh * 0.90;
 
+      procCtx.drawImage(source, sx, sy, sWidth, sHeight, 0, 0, 64, 64);
+      return procCtx.getImageData(0, 0, 64, 64);
+    }
 
-function mergeNearbyComponents(boxes) {
-  const remaining = boxes.map(box => ({ ...box }));
-  const merged = [];
+    function analyzeFrame(imageData) {
+      const d = imageData.data;
+      const debugImgData = debugCtx.createImageData(64, 64);
+      const dbg = debugImgData.data;
 
-  while (remaining.length) {
-    let current = remaining.shift();
-    let changed = true;
+      let edgeSum = 0;
+      const vector = new Float32Array(64 * 64);
 
-    while (changed) {
-      changed = false;
+      for (let i = 0; i < d.length; i += 4) {
+        const lum = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
+        const nextLum = (i + 4 < d.length) ? d[i+4] * 0.299 + d[i+5] * 0.587 + d[i+6] * 0.114 : lum;
+        
+        const diff = Math.abs(lum - nextLum);
+        edgeSum += diff;
+        vector[i / 4] = diff;
 
-      for (let i = remaining.length - 1; i >= 0; i--) {
-        const other = remaining[i];
+        const pxIdx = i;
+        dbg[pxIdx] = diff * 4;
+        dbg[pxIdx+1] = diff * 4;
+        dbg[pxIdx+2] = diff * 4;
+        dbg[pxIdx+3] = 255;
+      }
 
-        const currentRight = current.x + current.width;
-        const currentBottom = current.y + current.height;
-        const otherRight = other.x + other.width;
-        const otherBottom = other.y + other.height;
+      debugCtx.putImageData(debugImgData, 0, 0);
 
-        const gapX = Math.max(
-          0,
-          Math.max(current.x, other.x) -
-          Math.min(currentRight, otherRight)
-        );
+      const totalPixels = d.length / 4;
+      const avgDensity = edgeSum / totalPixels;
 
-        const gapY = Math.max(
-          0,
-          Math.max(current.y, other.y) -
-          Math.min(currentBottom, otherBottom)
-        );
+      return { vector, density: avgDensity };
+    }
 
-        const centreDistance = Math.hypot(
-          current.centreX - other.centreX,
-          current.centreY - other.centreY
-        );
+    function compareVectors(v1, v2) {
+      let diff = 0;
+      for (let i = 0; i < v1.length; i++) {
+        diff += Math.abs(v1[i] - v2[i]);
+      }
+      return (diff / (v1.length * 255)) * 100;
+    }
 
-        const shouldMerge =
-          (gapX <= CONFIG.mergeDistance && gapY <= CONFIG.mergeDistance) ||
-          centreDistance <= CONFIG.mergeDistance * 1.8;
+    function captureBeltFromCamera() {
+      if (video.readyState < 2) { alert("Camera stream not ready."); return; }
+      const roiData = captureROI(video);
+      const { density } = analyzeFrame(roiData);
+      beltBaselineDensity = density;
+      alert(`Belt Baseline set to ${density.toFixed(2)}`);
+    }
 
-        if (!shouldMerge) continue;
+    function captureGoodSample() {
+      if (video.readyState < 2) return;
+      const roiData = captureROI(video);
+      const { vector } = analyzeFrame(roiData);
+      goodHistograms.push(vector);
+      goodThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
+      renderStrips();
+    }
 
-        const minX = Math.min(current.x, other.x);
-        const minY = Math.min(current.y, other.y);
-        const maxX = Math.max(currentRight, otherRight);
-        const maxY = Math.max(currentBottom, otherBottom);
-
-        const totalCount = current.count + other.count;
-        current = {
-          x: minX,
-          y: minY,
-          width: maxX - minX,
-          height: maxY - minY,
-          count: totalCount,
-          fill: totalCount / Math.max(1, (maxX - minX) * (maxY - minY)),
-          centreX:
-            (current.centreX * current.count + other.centreX * other.count) /
-            totalCount,
-          centreY:
-            (current.centreY * current.count + other.centreY * other.count) /
-            totalCount,
-          angle:
-            (current.angle * current.count + other.angle * other.count) /
-            totalCount
+    function uploadGoodImage(e) {
+      Array.from(e.target.files).forEach(file => {
+        const img = new Image();
+        img.onload = () => {
+          const { vector } = analyzeFrame(captureROI(img));
+          goodHistograms.push(vector);
+          goodThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
+          renderStrips();
         };
-
-        remaining.splice(i, 1);
-        changed = true;
-      }
-    }
-
-    merged.push(current);
-  }
-
-  return merged.sort((a, b) => b.count - a.count);
-}
-
-function cropProduct(imageData, box, mask = null) {
-  const sourceCanvas = document.createElement("canvas");
-  sourceCanvas.width = PROCESS_W;
-  sourceCanvas.height = PROCESS_H;
-  const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
-  sourceCtx.putImageData(imageData, 0, 0);
-
-  const padX = Math.round(box.width * 0.12);
-  const padY = Math.round(box.height * 0.12);
-  const cropX = Math.max(0, box.x - padX);
-  const cropY = Math.max(0, box.y - padY);
-  const cropW = Math.min(PROCESS_W - cropX, box.width + padX * 2);
-  const cropH = Math.min(PROCESS_H - cropY, box.height + padY * 2);
-
-  const temporary = document.createElement("canvas");
-  temporary.width = Math.max(1, cropW);
-  temporary.height = Math.max(1, cropH);
-  const temporaryCtx = temporary.getContext("2d", { willReadFrequently: true });
-
-  temporaryCtx.fillStyle = "black";
-  temporaryCtx.fillRect(0, 0, temporary.width, temporary.height);
-  temporaryCtx.translate(temporary.width / 2, temporary.height / 2);
-  temporaryCtx.rotate(CONFIG.rotationNormalize ? -(box.angle || 0) : 0);
-  temporaryCtx.drawImage(sourceCanvas, cropX, cropY, cropW, cropH, -cropW / 2, -cropH / 2, cropW, cropH);
-
-  const canonical = document.createElement("canvas");
-  canonical.width = 240;
-  canonical.height = 180;
-  const canonicalCtx = canonical.getContext("2d", { willReadFrequently: true });
-  canonicalCtx.fillStyle = "black";
-  canonicalCtx.fillRect(0, 0, canonical.width, canonical.height);
-
-  const scale = Math.min(canonical.width * 0.90 / temporary.width, canonical.height * 0.90 / temporary.height);
-  const drawW = temporary.width * scale;
-  const drawH = temporary.height * scale;
-  canonicalCtx.drawImage(temporary, 0, 0, temporary.width, temporary.height,
-    (canonical.width - drawW) / 2, (canonical.height - drawH) / 2, drawW, drawH);
-
-  const result = canonicalCtx.getImageData(0, 0, canonical.width, canonical.height);
-  productCanvas.width = canonical.width;
-  productCanvas.height = canonical.height;
-  productCtx.putImageData(result, 0, 0);
-  return result;
-}
-
-
-function touchesBorder(box) {
-  const marginX = PROCESS_W * CONFIG.borderMargin;
-  const marginY = PROCESS_H * CONFIG.borderMargin;
-
-  return (
-    box.x <= marginX ||
-    box.y <= marginY ||
-    box.x + box.width >= PROCESS_W - marginX ||
-    box.y + box.height >= PROCESS_H - marginY
-  );
-}
-
-function frameQuality(imageData, box) {
-  const sharpness = simpleSharpness(imageData);
-  const borderTouch = touchesBorder(box);
-  const borderPenalty = borderTouch ? 90 : 0;
-
-  const progress = movementCoordinate(box) / lineLength();
-  const decisionCentre =
-    (CONFIG.decisionStart + CONFIG.decisionEnd) / 2;
-  const centreDistance = Math.abs(progress - decisionCentre);
-  const centreScore = Math.max(0, 35 - centreDistance * 100);
-
-  const areaRatio =
-    box.width * box.height / (PROCESS_W * PROCESS_H);
-  const sizeScore = Math.min(30, areaRatio * 130);
-
-  const completeness =
-    borderTouch ? 0 : Math.min(25, box.fill * 35);
-
-  const sharpnessScore = Math.min(60, sharpness * 1.4);
-
-  return {
-    sharpness,
-    complete: !borderTouch,
-    total:
-      sharpnessScore +
-      centreScore +
-      sizeScore +
-      completeness -
-      borderPenalty
-  };
-}
-
-function classify(imageData) {
-  const started = performance.now();
-  const feature = featureVector(imageData);
-  const goodDifference = modelDifference(feature, goodModel);
-  const badDifference = modelDifference(feature, badModel);
-  const rotatedGoodDifference = modelDifference(
-    featureVector(rotate180(imageData)),
-    goodModel
-  );
-
-  let rejected = true;
-  let reason = "Unknown product";
-
-  if (
-    rotatedGoodDifference + CONFIG.upsideDownMargin <
-    goodDifference
-  ) {
-    reason = "Upside-down orientation";
-  } else if (
-    badModel &&
-    badDifference + CONFIG.badVetoMargin < goodDifference
-  ) {
-    reason = "Matches known reject model";
-  } else if (
-    goodModel &&
-    goodDifference <= goodModel.threshold
-  ) {
-    rejected = false;
-    reason = "Matches learned GOOD model";
-  } else {
-    reason = "Outside learned GOOD model";
-  }
-
-  return {
-    rejected,
-    reason,
-    goodDifference,
-    badDifference,
-    threshold: goodModel?.threshold ?? CONFIG.modelFloor,
-    latency: performance.now() - started
-  };
-}
-
-
-function movementCoordinate(box) {
-  if (conveyorDirection === "down") return box.centreY;
-  if (conveyorDirection === "up") return PROCESS_H - box.centreY;
-  if (conveyorDirection === "right") return box.centreX;
-  return PROCESS_W - box.centreX;
-}
-
-function crossCoordinate(box) {
-  return conveyorDirection === "down" || conveyorDirection === "up"
-    ? box.centreX
-    : box.centreY;
-}
-
-function lineLength() {
-  return conveyorDirection === "down" || conveyorDirection === "up"
-    ? PROCESS_H
-    : PROCESS_W;
-}
-
-function isInDecisionZone(box) {
-  const ratio = movementCoordinate(box) / lineLength();
-  return ratio >= CONFIG.decisionStart && ratio <= CONFIG.decisionEnd;
-}
-
-function isPastDecisionZone(box) {
-  return movementCoordinate(box) / lineLength() > CONFIG.decisionEnd;
-}
-
-function isNearEntry(box) {
-  return movementCoordinate(box) / lineLength() <= CONFIG.entryZone + 0.12;
-}
-
-function predictedDistance(track, box) {
-  const predictedX = track.box.centreX + (track.velocityX || 0);
-  const predictedY = track.box.centreY + (track.velocityY || 0);
-  return Math.hypot(predictedX - box.centreX, predictedY - box.centreY);
-}
-
-function distance(a, b) {
-  return Math.hypot(a.centreX - b.centreX, a.centreY - b.centreY);
-}
-
-function iou(a, b) {
-  const x1 = Math.max(a.x, b.x);
-  const y1 = Math.max(a.y, b.y);
-  const x2 = Math.min(a.x + a.width, b.x + b.width);
-  const y2 = Math.min(a.y + a.height, b.y + b.height);
-  const overlap = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
-  const union = a.width * a.height + b.width * b.height - overlap;
-  return union ? overlap / union : 0;
-}
-
-function pruneLocks() {
-  const now = performance.now();
-  while (recentLocks.length && now - recentLocks[0].time > CONFIG.decisionLockMs) {
-    recentLocks.shift();
-  }
-}
-
-function recentlyDecided(box) {
-  pruneLocks();
-
-  return recentLocks.some(lock => {
-    const sameLaneDistance = Math.abs(lock.cross - crossCoordinate(box));
-    const movementGap = Math.abs(lock.movement - movementCoordinate(box));
-    const sizeRatio =
-      Math.min(lock.area, box.width * box.height) /
-      Math.max(lock.area, box.width * box.height);
-
-    // A very short, local lock prevents contour flicker from duplicating
-    // one item. It deliberately does not suppress the next back-to-back item.
-    return (
-      sameLaneDistance < 35 &&
-      movementGap < 28 &&
-      sizeRatio > 0.65
-    );
-  });
-}
-
-function addLog(track, result, imageData) {
-  const item = document.createElement("div");
-  item.className = "log-item";
-  const url = imageDataToUrl(imageData);
-  const titleColor = result.rejected ? "#f87171" : "#4ade80";
-  const title = result.rejected ? "REJECT" : "PASS";
-
-  item.innerHTML = `
-    <img src="${url}" alt="${title} snapshot">
-    <div>
-      <strong style="color:${titleColor}">${title} · Product ID ${track.id}</strong><br>
-      ${new Date().toLocaleTimeString()}<br>
-      ${result.reason}<br>
-      Good difference: ${result.goodDifference.toFixed(1)}%<br>
-      Model threshold: ${Number.isFinite(result.threshold) ? result.threshold.toFixed(1) : "—"}%<br>
-      Decision time: ${Math.round(result.latency)} ms<br>
-      Frame votes: ${result.votes || "1/1"}<br>
-      Sharpness: ${Number.isFinite(result.sharpness) ? result.sharpness.toFixed(1) : "—"}
-    </div>
-  `;
-
-  const log = $("activityLog");
-  log.prepend(item);
-
-  while (log.children.length > CONFIG.maxLogItems) {
-    log.lastElementChild.remove();
-  }
-}
-
-function decideTrack(track) {
-  if (track.decided) return;
-
-  const started = performance.now();
-  const completeFrames = [...track.frames]
-    .filter(frame => frame.sharpness >= CONFIG.minSharpness)
-    .sort((a, b) => b.quality - a.quality);
-
-  if (!completeFrames.length) {
-    const result = {
-      rejected: true,
-      reason: "No clear complete frame captured",
-      goodDifference: 100,
-      badDifference: Infinity,
-      threshold: goodModel?.threshold ?? CONFIG.modelFloor,
-      latency: performance.now() - started,
-      votes: "0/0",
-      sharpness: 0,
-      quality: 0,
-      imageData: track.frames[0]?.imageData || null
-    };
-
-    track.decided = true;
-    track.result = result;
-
-    rejectCount++;
-    updateTopUI();
-    beep();
-    setStatus("REJECT — NO CLEAR COMPLETE FRAME", "reject");
-
-    if (result.imageData) {
-      addLog(track, result, result.imageData);
-    }
-
-    return;
-  }
-
-  const votingFrames = completeFrames.slice(
-    0,
-    Math.min(CONFIG.voteFrames, completeFrames.length)
-  );
-
-  const results = votingFrames.map(frame => ({
-    ...classify(frame.imageData),
-    imageData: frame.imageData,
-    quality: frame.quality,
-    sharpness: frame.sharpness
-  }));
-
-  const passResults = results.filter(result => !result.rejected);
-
-  // Require the configured count, but never more votes than available frames.
-  const requiredVotes = Math.min(
-    CONFIG.passVotes,
-    results.length
-  );
-
-  const passed = passResults.length >= requiredVotes;
-
-  const selected = (passed ? passResults : results)
-    .sort((a, b) => {
-      if (b.quality !== a.quality) return b.quality - a.quality;
-      return a.goodDifference - b.goodDifference;
-    })[0];
-
-  const result = {
-    ...selected,
-    rejected: !passed,
-    reason: passed
-      ? `Confirmed good by ${passResults.length}/${results.length} clear-frame votes`
-      : `Rejected by clear-frame voting (${passResults.length}/${results.length} good votes)`,
-    latency: performance.now() - started,
-    votes: `${passResults.length}/${results.length}`
-  };
-
-  track.decided = true;
-  track.result = result;
-
-  recentLocks.push({
-    time: performance.now(),
-    cross: crossCoordinate(track.box),
-    movement: movementCoordinate(track.box),
-    area: track.box.width * track.box.height
-  });
-
-  $("latencyMetric").textContent =
-    `${Math.round(result.latency)} ms`;
-  $("decisionMetric").textContent =
-    result.rejected ? "REJECT" : "PASS";
-  $("qualityMetric").textContent =
-    Number.isFinite(result.quality)
-      ? result.quality.toFixed(1)
-      : "—";
-
-  if (result.rejected) {
-    rejectCount++;
-    updateTopUI();
-    beep();
-    setStatus(`REJECT — ${result.reason}`, "reject");
-  } else {
-    setStatus(`PASS — ${result.reason}`, "pass");
-  }
-
-  // Always record the best-quality frame.
-  addLog(track, result, result.imageData);
-}
-
-function maskCoverage(mask) {
-  let on = 0;
-  for (let i = 0; i < mask.length; i++) if (mask[i]) on++;
-  return on / Math.max(1, mask.length);
-}
-
-function decisionBandCoverage(mask) {
-  let on = 0;
-  let total = 0;
-  const vertical = conveyorDirection === "down" || conveyorDirection === "up";
-  if (vertical) {
-    const startY = Math.floor(PROCESS_H * CONFIG.decisionStart);
-    const endY = Math.ceil(PROCESS_H * CONFIG.decisionEnd);
-    for (let y = startY; y < endY; y++) {
-      for (let x = 0; x < PROCESS_W; x++) {
-        total++;
-        if (mask[y * PROCESS_W + x]) on++;
-      }
-    }
-  } else {
-    const startX = Math.floor(PROCESS_W * CONFIG.decisionStart);
-    const endX = Math.ceil(PROCESS_W * CONFIG.decisionEnd);
-    for (let y = 0; y < PROCESS_H; y++) {
-      for (let x = startX; x < endX; x++) {
-        total++;
-        if (mask[y * PROCESS_W + x]) on++;
-      }
-    }
-  }
-  return on / Math.max(1, total);
-}
-
-function updateTracks(boxes, frame, mask) {
-  const mergedBoxes = mergeNearbyComponents(boxes);
-  const totalCoverage = maskCoverage(mask);
-  const bandCoverage = decisionBandCoverage(mask);
-
-  const beltIsClear =
-    totalCoverage <= CONFIG.gapCoverageThreshold &&
-    bandCoverage <= CONFIG.gapCoverageThreshold;
-
-  if (beltIsClear) clearGapCounter++;
-  else clearGapCounter = 0;
-
-  if (clearGapCounter >= CONFIG.clearGapFrames) {
-    productGateArmed = true;
-    for (const track of tracks.values()) {
-      if (!track.decided && track.frames.length) decideTrack(track);
-      track.finished = true;
-    }
-  }
-
-  let activeTrack = [...tracks.values()].find(track => !track.finished);
-
-  if (!activeTrack && productGateArmed && mergedBoxes.length && bandCoverage >= CONFIG.decisionZoneCoverage) {
-    const box = mergedBoxes[0];
-    const image = cropProduct(frame, box);
-    const quality = frameQuality(image, box);
-    const id = nextTrackId++;
-    activeTrack = {
-      id, box, age: 1, misses: 0, decided: false, finished: false, result: null,
-      frames: [], totalSeenFrames: 1, velocityX: 0, velocityY: 0
-    };
-    if (quality.complete && quality.sharpness >= CONFIG.minSharpness) {
-      activeTrack.frames.push({
-        imageData: cloneImageData(image),
-        sharpness: quality.sharpness,
-        quality: quality.total
+        img.src = URL.createObjectURL(file);
       });
     }
-    tracks.set(id, activeTrack);
-    productGateArmed = false;
-  }
 
-  if (activeTrack && mergedBoxes.length) {
-    let bestBox = mergedBoxes[0];
-    let bestScore = -Infinity;
-    for (const box of mergedBoxes) {
-      const score = iou(activeTrack.box, box) * 160 - predictedDistance(activeTrack, box);
-      if (score > bestScore) { bestScore = score; bestBox = box; }
+    function captureBadSample() {
+      if (video.readyState < 2) return;
+      const roiData = captureROI(video);
+      const { vector } = analyzeFrame(roiData);
+      badHistograms.push(vector);
+      badThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
+      renderStrips();
     }
 
-    activeTrack.velocityX = activeTrack.velocityX * 0.55 + (bestBox.centreX - activeTrack.box.centreX) * 0.45;
-    activeTrack.velocityY = activeTrack.velocityY * 0.55 + (bestBox.centreY - activeTrack.box.centreY) * 0.45;
-    activeTrack.box = bestBox;
-    activeTrack.age++;
-    activeTrack.misses = 0;
-    activeTrack.totalSeenFrames++;
-
-    const image = cropProduct(frame, bestBox);
-    const quality = frameQuality(image, bestBox);
-    if (quality.complete && quality.sharpness >= CONFIG.minSharpness) {
-      activeTrack.frames.push({ imageData: cloneImageData(image), sharpness: quality.sharpness, quality: quality.total });
-      activeTrack.frames.sort((a, b) => b.quality - a.quality);
-      activeTrack.frames = activeTrack.frames.slice(0, Math.max(CONFIG.voteFrames + 2, 5));
+    function uploadBadImage(e) {
+      Array.from(e.target.files).forEach(file => {
+        const img = new Image();
+        img.onload = () => {
+          const { vector } = analyzeFrame(captureROI(img));
+          badHistograms.push(vector);
+          badThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
+          renderStrips();
+        };
+        img.src = URL.createObjectURL(file);
+      });
     }
 
-    const enoughFrames = activeTrack.frames.length >= CONFIG.minCollectedFrames;
-    if (!activeTrack.decided && enoughFrames && bandCoverage >= CONFIG.decisionZoneCoverage) {
-      decideTrack(activeTrack);
-    } else if (!activeTrack.decided && activeTrack.totalSeenFrames >= CONFIG.maxWaitFrames && activeTrack.frames.length) {
-      decideTrack(activeTrack);
-    }
-  } else if (activeTrack) {
-    activeTrack.misses++;
-    if (!activeTrack.decided && activeTrack.frames.length && (activeTrack.misses >= 2 || activeTrack.totalSeenFrames >= CONFIG.maxWaitFrames)) {
-      decideTrack(activeTrack);
-    }
-  }
+    function clearGoodSamples() { goodHistograms = []; goodThumbnails = []; renderStrips(); }
+    function clearBadSamples() { badHistograms = []; badThumbnails = []; renderStrips(); }
 
-  for (const [id, track] of tracks) {
-    if (track.finished && clearGapCounter >= CONFIG.clearGapFrames) tracks.delete(id);
-  }
+    function renderStrips() {
+      const gContainer = document.getElementById('goodStrip');
+      gContainer.innerHTML = '';
+      goodThumbnails.forEach(url => {
+        const img = document.createElement('img');
+        img.src = url; img.className = 'sample-thumb-good';
+        gContainer.appendChild(img);
+      });
+      document.getElementById('goodCount').innerText = goodThumbnails.length;
 
-  $("trackMetric").textContent = String([...tracks.values()].filter(track => !track.finished).length);
-}
-
-function simpleSharpness(imageData) {
-  let total = 0;
-  let count = 0;
-  const { width, height, data } = imageData;
-
-  for (let y = 1; y < height - 1; y += 3) {
-    for (let x = 1; x < width - 1; x += 3) {
-      const i = (y * width + x) * 4;
-      const l = (y * width + x - 1) * 4;
-      const r = (y * width + x + 1) * 4;
-      const g = j => 0.299 * data[j] + 0.587 * data[j + 1] + 0.114 * data[j + 2];
-      const value = g(r) - g(l);
-      total += value * value;
-      count++;
-    }
-  }
-
-  return count ? Math.sqrt(total / count) : 0;
-}
-
-function drawTracks() {
-  const rect = displayedVideoRect();
-  overlayCtx.clearRect(0, 0, stage.clientWidth, stage.clientHeight);
-
-  for (const track of tracks.values()) {
-    const x = rect.x + rect.width * (ROI.x + ROI.width * track.box.x / PROCESS_W);
-    const y = rect.y + rect.height * (ROI.y + ROI.height * track.box.y / PROCESS_H);
-    const w = rect.width * ROI.width * track.box.width / PROCESS_W;
-    const h = rect.height * ROI.height * track.box.height / PROCESS_H;
-
-    const color = track.decided
-      ? (track.result.rejected ? "#ef4444" : "#10b981")
-      : "#3b82f6";
-
-    overlayCtx.strokeStyle = color;
-    overlayCtx.lineWidth = 3;
-    overlayCtx.strokeRect(x, y, w, h);
-    overlayCtx.fillStyle = color;
-    overlayCtx.font = "bold 15px sans-serif";
-    overlayCtx.fillText(
-      `ID ${track.id} — ${track.decided ? (track.result.rejected ? "REJECT" : "PASS") : "TRACKING"}`,
-      x + 4,
-      Math.max(18, y - 6)
-    );
-  }
-}
-
-function processCameraFrame(timestamp) {
-  if (!running) return;
-
-  const intervalMs = 1000 / Math.max(1, CONFIG.targetFps);
-
-  if (timestamp - lastLoopAt >= intervalMs) {
-    lastLoopAt = timestamp;
-    processedFrames++;
-
-    try {
-      const frame = captureRoi();
-      const mask = createMask(frame);
-      const boxes = components(mask);
-      updateTracks(boxes, frame, mask);
-      drawTracks();
-
-      if (!boxes.length && !tracks.size) {
-        setStatus("BELT CLEAR — READY", "ready");
-      } else if (boxes.length && ![...tracks.values()].some(track => track.decided)) {
-        setStatus("PRODUCT ACTIVE — COLLECTING BEST CAMERA FRAMES", "inspecting");
-      }
-    } catch (error) {
-      setStatus(`PROCESSING ERROR — ${error.message}`, "reject");
-    }
-  }
-
-  const now = performance.now();
-  if (now - lastFpsAt >= 1000) {
-    $("fpsMetric").textContent = String(processedFrames);
-    processedFrames = 0;
-    lastFpsAt = now;
-  }
-
-  scheduleNextFrame();
-}
-
-function scheduleNextFrame() {
-  if (!running) return;
-
-  if ("requestVideoFrameCallback" in HTMLVideoElement.prototype) {
-    videoFrameCallbackId = video.requestVideoFrameCallback(
-      (now) => processCameraFrame(now)
-    );
-  } else {
-    animationId = requestAnimationFrame(processCameraFrame);
-  }
-}
-
-function cancelFrameLoop() {
-  if (
-    videoFrameCallbackId !== null &&
-    "cancelVideoFrameCallback" in HTMLVideoElement.prototype
-  ) {
-    video.cancelVideoFrameCallback(videoFrameCallbackId);
-    videoFrameCallbackId = null;
-  }
-
-  cancelFrameLoop();
-}
-
-function toggleInspection() {
-  if (!calibrated) {
-    alert("Calibrate the system first.");
-    return;
-  }
-
-  running = !running;
-  $("inspectionBtn").textContent = running ? "Stop Inspection" : "Start Inspection";
-  $("inspectionBtn").className = running ? "danger" : "success";
-
-  if (running) {
-    tracks.clear();
-    recentLocks.length = 0;
-    clearGapCounter = CONFIG.clearGapFrames;
-    productGateArmed = true;
-    setStatus("INSPECTION STARTED — READY", "ready");
-    scheduleNextFrame();
-  } else {
-    cancelFrameLoop();
-    setStatus("INSPECTION STOPPED", "ready");
-  }
-}
-
-function makeSample(imageData, type) {
-  return {
-    imageData: cloneImageData(imageData),
-    feature: featureVector(imageData),
-    thumbnail: imageDataToUrl(imageData),
-    type
-  };
-}
-
-function extractLargestNormalizedObject(frame) {
-  if (!beltModel) {
-    throw new Error("Capture at least 3 belt samples first.");
-  }
-
-  const mask = createMask(frame);
-  const boxes = components(mask);
-
-  if (!boxes.length) {
-    throw new Error("No complete object detected.");
-  }
-
-  const bestBox = boxes[0];
-
-  if (touchesBorder(bestBox)) {
-    throw new Error("Object touches the ROI border. Centre it and try again.");
-  }
-
-  return cropProduct(frame, bestBox);
-}
-
-function addCurrentSample(type) {
-  try {
-    const frame = captureRoi();
-
-    if (type === "belt") {
-      beltSamples.push(makeSample(frame, type));
-      if (beltSamples.length >= 3) buildBeltModel();
-    } else {
-      if (beltSamples.length < 3) {
-        throw new Error("Capture at least 3 belt samples first.");
-      }
-
-      if (!beltModel) buildBeltModel();
-      const normalized = extractLargestNormalizedObject(frame);
-      const sample = makeSample(normalized, type);
-
-      if (type === "good") goodSamples.push(sample);
-      if (type === "bad") badSamples.push(sample);
+      const bContainer = document.getElementById('badStrip');
+      bContainer.innerHTML = '';
+      badThumbnails.forEach(url => {
+        const img = document.createElement('img');
+        img.src = url; img.className = 'sample-thumb-bad';
+        bContainer.appendChild(img);
+      });
+      document.getElementById('badCount').innerText = badThumbnails.length;
     }
 
-    renderBanks();
-    calibrated = false;
-    goodModel = null;
-    badModel = null;
-  } catch (error) {
-    alert(error.message);
-  }
-}
+    /* === LOCAL STORAGE PROFILES === */
 
-async function imageFileToSample(file, type) {
-  const bitmap = await createImageBitmap(file);
-  const canvas = document.createElement("canvas");
-  canvas.width = PROCESS_W;
-  canvas.height = PROCESS_H;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    function saveCurrentProfile() {
+      if (goodHistograms.length === 0) { alert("Add at least ONE good target sample first."); return; }
+      const name = prompt("Name this profile:");
+      if (!name) return;
 
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const profile = {
+        name: name,
+        beltBaselineDensity: beltBaselineDensity,
+        sensitivity: sensitivityInput.value,
+        presenceSens: presenceInput.value,
+        goodHistograms: goodHistograms.map(arr => Array.from(arr)),
+        goodThumbnails: goodThumbnails,
+        badHistograms: badHistograms.map(arr => Array.from(arr)),
+        badThumbnails: badThumbnails
+      };
 
-  const scale = Math.min(canvas.width / bitmap.width, canvas.height / bitmap.height);
-  const dw = bitmap.width * scale;
-  const dh = bitmap.height * scale;
-  const dx = (canvas.width - dw) / 2;
-  const dy = (canvas.height - dh) / 2;
+      let profiles = JSON.parse(localStorage.getItem('gap_inspector_profiles') || '{}');
+      profiles[name] = profile;
+      localStorage.setItem('gap_inspector_profiles', JSON.stringify(profiles));
 
-  ctx.drawImage(bitmap, dx, dy, dw, dh);
-  bitmap.close();
+      populateProfileDropdown();
+      profileSelect.value = name;
+      alert(`Profile "${name}" saved!`);
+    }
 
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-  if (type === "belt") return makeSample(imageData, type);
-
-  const corners = [
-    [2, 2],
-    [canvas.width - 3, 2],
-    [2, canvas.height - 3],
-    [canvas.width - 3, canvas.height - 3]
-  ];
-
-  let bgR = 0, bgG = 0, bgB = 0;
-  for (const [x, y] of corners) {
-    const i = (y * canvas.width + x) * 4;
-    bgR += imageData.data[i];
-    bgG += imageData.data[i + 1];
-    bgB += imageData.data[i + 2];
-  }
-
-  bgR /= corners.length;
-  bgG /= corners.length;
-  bgB /= corners.length;
-
-  const mask = new Uint8Array(canvas.width * canvas.height);
-  let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
-  let count = 0, sumX = 0, sumY = 0, sumXX = 0, sumYY = 0, sumXY = 0;
-
-  for (let y = 0; y < canvas.height; y++) {
-    for (let x = 0; x < canvas.width; x++) {
-      const p = y * canvas.width + x;
-      const i = p * 4;
-      const dr = imageData.data[i] - bgR;
-      const dg = imageData.data[i + 1] - bgG;
-      const db = imageData.data[i + 2] - bgB;
-      const distance = Math.sqrt(dr * dr + dg * dg + db * db);
-
-      if (distance > 38) {
-        mask[p] = 255;
-        minX = Math.min(minX, x);
-        minY = Math.min(minY, y);
-        maxX = Math.max(maxX, x);
-        maxY = Math.max(maxY, y);
-        count++;
-        sumX += x;
-        sumY += y;
-        sumXX += x * x;
-        sumYY += y * y;
-        sumXY += x * y;
+    function populateProfileDropdown() {
+      let profiles = JSON.parse(localStorage.getItem('gap_inspector_profiles') || '{}');
+      profileSelect.innerHTML = '<option value="">-- Load Profile --</option>';
+      for (let name in profiles) {
+        const opt = document.createElement('option');
+        opt.value = name; opt.innerText = name;
+        profileSelect.appendChild(opt);
       }
     }
-  }
 
-  if (!count || maxX <= minX || maxY <= minY) {
-    return makeSample(imageData, type);
-  }
+    function loadSelectedProfile() {
+      const name = profileSelect.value;
+      if (!name) return;
 
-  const cx = sumX / count;
-  const cy = sumY / count;
-  const covXX = sumXX / count - cx * cx;
-  const covYY = sumYY / count - cy * cy;
-  const covXY = sumXY / count - cx * cy;
+      let profiles = JSON.parse(localStorage.getItem('gap_inspector_profiles') || '{}');
+      const p = profiles[name];
+      if (!p) return;
 
-  const box = {
-    x: minX,
-    y: minY,
-    width: maxX - minX + 1,
-    height: maxY - minY + 1,
-    centreX: cx,
-    centreY: cy,
-    angle: 0.5 * Math.atan2(2 * covXY, covXX - covYY)
-  };
+      beltBaselineDensity = p.beltBaselineDensity;
+      sensitivityInput.value = p.sensitivity;
+      sensValDisplay.innerText = `${p.sensitivity}%`;
+      presenceInput.value = p.presenceSens;
+      presenceValDisplay.innerText = `${p.presenceSens}%`;
 
-  return makeSample(cropProduct(imageData, box), type);
-}
+      goodHistograms = p.goodHistograms.map(arr => new Float32Array(arr));
+      goodThumbnails = p.goodThumbnails || [];
+      badHistograms = p.badHistograms.map(arr => new Float32Array(arr));
+      badThumbnails = p.badThumbnails || [];
 
-async function handleUpload(event, type) {
-  const files = Array.from(event.target.files || []);
-  for (const file of files) {
-    const sample = await imageFileToSample(file, type);
-    if (type === "belt") beltSamples.push(sample);
-    if (type === "good") goodSamples.push(sample);
-    if (type === "bad") badSamples.push(sample);
-  }
-  event.target.value = "";
-  renderBanks();
-  calibrated = false;
-}
-
-async function captureBurst(type) {
-  if (!video.videoWidth) {
-    alert("Start the camera first.");
-    return;
-  }
-
-  if (running) {
-    alert("Stop inspection before capturing a reference burst.");
-    return;
-  }
-
-  if (type !== "belt" && beltSamples.length < 3) {
-    alert("Capture at least 3 belt samples first.");
-    return;
-  }
-
-  const target =
-    type === "belt"
-      ? beltSamples
-      : type === "good"
-        ? goodSamples
-        : badSamples;
-
-  if (type !== "belt" && !beltModel) buildBeltModel();
-
-  setStatus(`CAPTURING ${type.toUpperCase()} BURST…`, "inspecting");
-  let added = 0;
-
-  for (let i = 0; i < CONFIG.burstFrames; i++) {
-    try {
-      const frame = captureRoi();
-      const image =
-        type === "belt"
-          ? frame
-          : extractLargestNormalizedObject(frame);
-
-      target.push(makeSample(image, type));
-      added++;
-    } catch {
-      // Ignore partial/no-object frames.
+      renderStrips();
+      alert(`Loaded profile: ${name}`);
     }
 
-    await new Promise(resolve => setTimeout(resolve, 120));
-  }
+    function deleteSelectedProfile() {
+      const name = profileSelect.value;
+      if (!name) return;
+      if (confirm(`Delete profile "${name}"?`)) {
+        let profiles = JSON.parse(localStorage.getItem('gap_inspector_profiles') || '{}');
+        delete profiles[name];
+        localStorage.setItem('gap_inspector_profiles', JSON.stringify(profiles));
+        populateProfileDropdown();
+      }
+    }
 
-  while (target.length > 24) target.shift();
+    /* === HYSTERESIS GAP SCAN LOOP === */
 
-  if (type === "belt" && beltSamples.length >= 3) {
-    buildBeltModel();
-  }
+    function toggleScanning() {
+      if (goodHistograms.length === 0) { alert("Load a Profile or add Good Samples first!"); return; }
+      isScanning = !isScanning;
+      const btn = document.getElementById('toggleScanBtn');
+      if (isScanning) {
+        btn.innerText = "Stop Inspection";
+        btn.style.background = "var(--danger)";
+        scanLoop();
+      } else {
+        btn.innerText = "Start Inspection";
+        btn.style.background = "var(--success)";
+        cancelAnimationFrame(animationFrameId);
+        liveStatus.className = "status-badge status-standby";
+        liveStatus.innerText = "STATUS: STANDBY";
+      }
+    }
 
-  renderBanks();
-  calibrated = false;
-  goodModel = null;
-  badModel = null;
+    function scanLoop() {
+      if (!isScanning) return;
+      
+      if (video.readyState >= 2) {
+        const roiData = captureROI(video);
+        const { vector: currentVector, density: currentDensity } = analyzeFrame(roiData);
+        
+        const delta = Math.abs(currentDensity - beltBaselineDensity);
+        
+        document.getElementById('debugDeltaVal').innerText = delta.toFixed(2);
+        document.getElementById('debugBaseVal').innerText = beltBaselineDensity.toFixed(2);
 
-  setStatus(
-    `ADDED ${added} ${type.toUpperCase()} NORMALIZED REFERENCES`,
-    "ready"
-  );
-}
+        const highThreshold = parseFloat(presenceInput.value);
+        const lowThreshold = highThreshold * 0.4; // Clear hysteresis threshold (40% of high)
 
-function renderBank(containerId, samples, type) {
-  const node = $(containerId);
-  node.innerHTML = "";
-  for (const sample of samples) {
-    const img = document.createElement("img");
-    img.src = sample.thumbnail;
-    img.className = `thumb ${type}`;
-    node.appendChild(img);
-  }
-}
+        // 1. GAP DETECTED: Belt is empty
+        if (delta < lowThreshold) {
+          objectInZone = false;
+          currentObjectEvaluated = false; // RESET STATE FOR NEXT ITEM
+          
+          // Adaptive Baseline Drift Adjustment during empty belt gap
+          beltBaselineDensity = (beltBaselineDensity * 0.95) + (currentDensity * 0.05);
 
-function renderBanks() {
-  $("beltCount").textContent = String(beltSamples.length);
-  $("goodCount").textContent = String(goodSamples.length);
-  $("badCount").textContent = String(badSamples.length);
-  renderBank("beltThumbs", beltSamples, "belt");
-  renderBank("goodThumbs", goodSamples, "good");
-  renderBank("badThumbs", badSamples, "bad");
-}
+          liveStatus.className = "status-badge status-empty";
+          liveStatus.innerText = "BELT CLEAR";
+          document.getElementById('debugState').innerText = "CLEAR";
+          document.getElementById('debugState').style.color = "#f59e0b";
+        } 
+        // 2. OBJECT ENTERED ZONE
+        else if (delta >= highThreshold) {
+          objectInZone = true;
+          document.getElementById('debugState').innerText = "OBJECT IN ZONE";
+          document.getElementById('debugState').style.color = "#3b82f6";
 
-function calibrate() {
-  if (beltSamples.length < 3 || goodSamples.length < 3) {
-    alert("Use at least 3 belt samples and 3 normalized good samples.");
-    return;
-  }
+          // Evaluate ONCE per package arrival
+          if (!currentObjectEvaluated) {
+            let minGoodDiff = Math.min(...goodHistograms.map(v => compareVectors(v, currentVector)));
+            let minBadDiff = badHistograms.length > 0 ? Math.min(...badHistograms.map(v => compareVectors(v, currentVector))) : 999;
 
-  buildBeltModel();
+            const defectLimit = parseFloat(sensitivityInput.value);
+            const isRejectMatch = minBadDiff < minGoodDiff && minBadDiff < defectLimit;
+            const isDeviation = minGoodDiff > defectLimit;
 
-  for (const sample of goodSamples) {
-    if (sample.imageData) sample.feature = featureVector(sample.imageData);
-  }
+            if (isDeviation || isRejectMatch) {
+              liveStatus.className = "status-badge status-fail";
+              liveStatus.innerText = `DEFECT DETECTED (${minGoodDiff.toFixed(1)}% Variance)`;
+              triggerAlarm();
+              logDefect(minGoodDiff);
+            } else {
+              liveStatus.className = "status-badge status-pass";
+              liveStatus.innerText = `PASS (${minGoodDiff.toFixed(1)}% Match)`;
+            }
 
-  for (const sample of badSamples) {
-    if (sample.imageData) sample.feature = featureVector(sample.imageData);
-  }
+            currentObjectEvaluated = true; // Lock evaluation until object fully leaves zone
+          }
+        }
+      }
 
-  goodModel = buildReferenceModel(goodSamples);
-  badModel = badSamples.length >= 2
-    ? buildReferenceModel(badSamples)
-    : null;
+      animationFrameId = requestAnimationFrame(scanLoop);
+    }
 
-  if (!goodModel) {
-    alert("Could not build the GOOD model. Recapture clear product samples.");
-    return;
-  }
+    function logDefect(score) {
+      defectCount++;
+      document.getElementById('defectCount').innerText = defectCount;
+      const snapshotUrl = procCanvas.toDataURL('image/jpeg', 0.8);
 
-  calibrated = true;
-  tracks.clear();
+      const logItem = document.createElement('div');
+      logItem.className = 'log-item';
+      logItem.innerHTML = `
+        <img src="${snapshotUrl}"/>
+        <div class="log-info">
+          <strong>Defect #${defectCount}</strong> - ${new Date().toLocaleTimeString()}<br/>
+          <span style="color:var(--danger)">Variance: ${score.toFixed(1)}%</span>
+        </div>
+      `;
+      logList.insertBefore(logItem, logList.firstChild);
+    }
 
-  $("modelSpreadMetric").textContent =
-    `${goodModel.spread.toFixed(1)} / ${goodModel.threshold.toFixed(1)}`;
-
-  $("calibrationMessage").textContent =
-    `GOOD model built from ${goodModel.sampleCount} normalized samples. ` +
-    `Spread ${goodModel.spread.toFixed(1)}%, acceptance limit ` +
-    `${goodModel.threshold.toFixed(1)}%.`;
-
-  setStatus("GOOD MODEL READY — START INSPECTION", "pass");
-}
-
-function saveProfile() {
-  if (!calibrated) {
-    alert("Calibrate before saving.");
-    return;
-  }
-
-  const compact = samples => samples.slice(0, 24).map(sample => ({
-    feature: sample.feature,
-    thumbnail: sample.thumbnail
-  }));
-
-  localStorage.setItem("uli_normalized_v4", JSON.stringify({
-    version: 1,
-    ROI,
-    belt: compact(beltSamples),
-    good: compact(goodSamples),
-    bad: compact(badSamples),
-    goodModel,
-    badModel
-  }));
-
-  alert("Profile saved. For best belt subtraction after reload, recapture belt samples in the current session.");
-}
-
-function loadProfile() {
-  const raw = localStorage.getItem("uli_normalized_v4");
-  if (!raw) {
-    alert("No saved profile.");
-    return;
-  }
-
-  const saved = JSON.parse(raw);
-  ROI = saved.ROI || ROI;
-  const restore = (items, type) => (items || []).map(item => ({
-    imageData: null,
-    feature: item.feature,
-    thumbnail: item.thumbnail,
-    type
-  }));
-
-  beltSamples = restore(saved.belt, "belt");
-  goodSamples = restore(saved.good, "good");
-  badSamples = restore(saved.bad, "bad");
-  goodModel = saved.goodModel || buildReferenceModel(goodSamples);
-  badModel = saved.badModel || (badSamples.length >= 2 ? buildReferenceModel(badSamples) : null);
-  calibrated = false;
-  beltModel = null;
-  renderBanks();
-  updateRoiOverlay();
-
-  $("calibrationMessage").textContent =
-    "Profile descriptors loaded. Recapture at least 3 belt frames, then calibrate.";
-  setStatus("PROFILE LOADED — BELT RECAPTURE REQUIRED", "inspecting");
-}
-
-function clearProfile() {
-  localStorage.removeItem("uli_normalized_v4");
-  alert("Saved profile deleted.");
-}
-
-
-function readAdvancedSettings() {
-  const [width, height] = $("processingPreset").value.split("x").map(Number);
-
-  return {
-    width,
-    height,
-    targetFps: Number($("targetFps").value),
-    matchDistance: Number($("cfgMatchDistance").value),
-    maxMisses: Number($("cfgMaxMisses").value),
-    minTrackAge: Number($("cfgMinTrackAge").value),
-    decisionLockMs: Number($("cfgLockMs").value),
-    minSeparation: Number($("cfgMinSeparation").value),
-    maxTracks: Number($("cfgMaxTracks").value),
-    entryZone: Number($("cfgEntryZone").value) / 100,
-    decisionStart: Number($("cfgDecisionStart").value) / 100,
-    decisionEnd: Number($("cfgDecisionEnd").value) / 100,
-    minSharpness: Number($("cfgMinSharpness").value),
-    borderMargin: Number($("cfgBorderMargin").value) / 100,
-    voteFrames: Number($("cfgVoteFrames").value),
-    passVotes: Number($("cfgPassVotes").value),
-    upsideDownMargin: Number($("cfgUpsideDownMargin").value),
-    badVetoMargin: Number($("cfgBadVetoMargin").value),
-    morphology: Number($("cfgMorphology").value),
-    modelMultiplier: Number($("cfgModelMultiplier").value),
-    modelFloor: Number($("cfgModelFloor").value),
-    modelCeiling: Number($("cfgModelCeiling").value),
-    rotationNormalize: Number($("cfgRotationNormalize").value),
-    clearGapFrames: Number($("cfgClearGapFrames").value),
-    mergeDistance: Number($("cfgMergeDistance").value),
-    minCollectedFrames: Number($("cfgMinCollectedFrames").value),
-    maxWaitFrames: Number($("cfgMaxWaitFrames").value),
-    gapCoverageThreshold: Number($("cfgGapCoverageThreshold").value) / 100,
-    decisionZoneCoverage: Number($("cfgDecisionZoneCoverage").value) / 100
-  };
-}
-
-function writeAdvancedSettings(settings) {
-  $("processingPreset").value = `${settings.width || PROCESS_W}x${settings.height || PROCESS_H}`;
-  $("targetFps").value = settings.targetFps;
-  $("cfgMatchDistance").value = settings.matchDistance;
-  $("cfgMaxMisses").value = settings.maxMisses;
-  $("cfgMinTrackAge").value = settings.minTrackAge;
-  $("cfgLockMs").value = settings.decisionLockMs;
-  $("cfgMinSeparation").value = settings.minSeparation;
-  $("cfgMaxTracks").value = settings.maxTracks;
-  $("cfgEntryZone").value = Math.round(settings.entryZone * 100);
-  $("cfgDecisionStart").value = Math.round(settings.decisionStart * 100);
-  $("cfgDecisionEnd").value = Math.round(settings.decisionEnd * 100);
-  $("cfgMinSharpness").value = settings.minSharpness;
-  $("cfgBorderMargin").value = Math.round(settings.borderMargin * 100);
-  $("cfgVoteFrames").value = settings.voteFrames;
-  $("cfgPassVotes").value = settings.passVotes;
-  $("cfgUpsideDownMargin").value = settings.upsideDownMargin;
-  $("cfgBadVetoMargin").value = settings.badVetoMargin;
-  $("cfgMorphology").value = settings.morphology;
-  $("cfgModelMultiplier").value = settings.modelMultiplier ?? 2.2;
-  $("cfgModelFloor").value = settings.modelFloor ?? 8;
-  $("cfgModelCeiling").value = settings.modelCeiling ?? 28;
-  $("cfgRotationNormalize").value = settings.rotationNormalize ?? 1;
-  $("cfgClearGapFrames").value = settings.clearGapFrames ?? 3;
-  $("cfgMergeDistance").value = settings.mergeDistance ?? 22;
-  $("cfgMinCollectedFrames").value = settings.minCollectedFrames ?? 3;
-  $("cfgMaxWaitFrames").value = settings.maxWaitFrames ?? 8;
-  $("cfgGapCoverageThreshold").value = ((settings.gapCoverageThreshold ?? 0.018) * 100).toFixed(1);
-  $("cfgDecisionZoneCoverage").value = ((settings.decisionZoneCoverage ?? 0.035) * 100).toFixed(1);
-}
-
-function applyAdvancedSettings(settings = readAdvancedSettings()) {
-  if (running) {
-    alert("Stop inspection before applying advanced settings.");
-    return;
-  }
-
-  if (settings.decisionStart >= settings.decisionEnd) {
-    alert("Inspection-zone start must be lower than inspection-zone end.");
-    return;
-  }
-
-  if (settings.passVotes > settings.voteFrames) {
-    alert("PASS votes required cannot exceed best frames per product.");
-    return;
-  }
-
-  PROCESS_W = settings.width;
-  PROCESS_H = settings.height;
-
-  CONFIG = {
-    ...CONFIG,
-    targetFps: settings.targetFps,
-    matchDistance: settings.matchDistance,
-    maxMisses: settings.maxMisses,
-    minTrackAge: settings.minTrackAge,
-    decisionLockMs: settings.decisionLockMs,
-    minSeparation: settings.minSeparation,
-    maxTracks: settings.maxTracks,
-    entryZone: settings.entryZone,
-    decisionStart: settings.decisionStart,
-    decisionEnd: settings.decisionEnd,
-    minSharpness: settings.minSharpness,
-    borderMargin: settings.borderMargin,
-    voteFrames: settings.voteFrames,
-    passVotes: settings.passVotes,
-    upsideDownMargin: settings.upsideDownMargin,
-    badVetoMargin: settings.badVetoMargin,
-    morphology: settings.morphology,
-    modelMultiplier: settings.modelMultiplier,
-    modelFloor: settings.modelFloor,
-    modelCeiling: settings.modelCeiling,
-    rotationNormalize: settings.rotationNormalize,
-    clearGapFrames: settings.clearGapFrames,
-    mergeDistance: settings.mergeDistance,
-    minCollectedFrames: settings.minCollectedFrames,
-    maxWaitFrames: settings.maxWaitFrames,
-    gapCoverageThreshold: settings.gapCoverageThreshold,
-    decisionZoneCoverage: settings.decisionZoneCoverage
-  };
-
-  workCanvas.width = PROCESS_W;
-  workCanvas.height = PROCESS_H;
-  roiCanvas.width = PROCESS_W;
-  roiCanvas.height = PROCESS_H;
-  maskCanvas.width = PROCESS_W;
-  maskCanvas.height = PROCESS_H;
-
-  calibrated = false;
-  beltModel = null;
-  tracks.clear();
-  recentLocks.length = 0;
-  clearGapCounter = 0;
-  productGateArmed = true;
-  updateRoiOverlay();
-
-  $("advancedMessage").textContent =
-    `Applied ${PROCESS_W}×${PROCESS_H}, ${CONFIG.targetFps} FPS, ` +
-    `${CONFIG.voteFrames} best frames and ${CONFIG.passVotes} PASS votes. Recalibrate.`;
-
-  setStatus("SETTINGS APPLIED — RECALIBRATE", "inspecting");
-}
-
-const ADVANCED_PRESETS = {
-  fast: {
-    width: 256, height: 192, targetFps: 35, matchDistance: 125,
-    maxMisses: 3, minTrackAge: 1, decisionLockMs: 220,
-    minSeparation: 5, maxTracks: 16, entryZone: .14,
-    decisionStart: .25, decisionEnd: .67, minSharpness: 2.5,
-    borderMargin: .02, voteFrames: 2, passVotes: 1,
-    upsideDownMargin: 2, badVetoMargin: 2, morphology: 0,
-    modelMultiplier: 2.5, modelFloor: 9, modelCeiling: 32,
-    rotationNormalize: 1, clearGapFrames: 2, mergeDistance: 18,
-    minCollectedFrames: 2, maxWaitFrames: 6,
-    gapCoverageThreshold: .012, decisionZoneCoverage: .025
-  },
-  balanced: {
-    width: 256, height: 192, ...DEFAULT_CONFIG
-  },
-  accurate: {
-    width: 384, height: 288, targetFps: 18, matchDistance: 90,
-    maxMisses: 6, minTrackAge: 2, decisionLockMs: 420,
-    minSeparation: 9, maxTracks: 10, entryZone: .18,
-    decisionStart: .34, decisionEnd: .76, minSharpness: 8,
-    borderMargin: .05, voteFrames: 5, passVotes: 3,
-    upsideDownMargin: 1.5, badVetoMargin: 1.5, morphology: 1,
-    modelMultiplier: 1.8, modelFloor: 6, modelCeiling: 22,
-    rotationNormalize: 1, clearGapFrames: 4, mergeDistance: 26,
-    minCollectedFrames: 4, maxWaitFrames: 12,
-    gapCoverageThreshold: .022, decisionZoneCoverage: .045
-  }
-};
-
-function applyPreset(name) {
-  const preset = ADVANCED_PRESETS[name];
-  writeAdvancedSettings(preset);
-  applyAdvancedSettings(preset);
-}
-
-function saveAdvancedSettings() {
-  localStorage.setItem("uli_v32_settings", JSON.stringify({
-    width: PROCESS_W,
-    height: PROCESS_H,
-    ...CONFIG
-  }));
-  $("advancedMessage").textContent = "Advanced settings saved on this device.";
-}
-
-function loadAdvancedSettings() {
-  const raw = localStorage.getItem("uli_v32_settings");
-  if (!raw) {
-    writeAdvancedSettings({ width: PROCESS_W, height: PROCESS_H, ...CONFIG });
-    return;
-  }
-
-  try {
-    const saved = JSON.parse(raw);
-    writeAdvancedSettings(saved);
-    applyAdvancedSettings(saved);
-  } catch {
-    writeAdvancedSettings({ width: PROCESS_W, height: PROCESS_H, ...CONFIG });
-  }
-}
-
-$("rearCameraBtn").addEventListener("click", () => startCamera("environment"));
-$("frontCameraBtn").addEventListener("click", () => startCamera("user"));
-$("inspectionBtn").addEventListener("click", toggleInspection);
-
-$("fullscreenBtn").addEventListener("click", async () => {
-  if (document.fullscreenElement) {
-    await document.exitFullscreen();
-  } else if (stage.requestFullscreen) {
-    await stage.requestFullscreen();
-  } else if (video.webkitEnterFullscreen) {
-    video.webkitEnterFullscreen();
-  }
-});
-
-$("fullRoiBtn").addEventListener("click", () => setRoi("full"));
-$("verticalRoiBtn").addEventListener("click", () => setRoi("vertical"));
-$("horizontalRoiBtn").addEventListener("click", () => setRoi("horizontal"));
-
-
-$("presetFastBtn").addEventListener("click", () => applyPreset("fast"));
-$("presetBalancedBtn").addEventListener("click", () => applyPreset("balanced"));
-$("presetAccurateBtn").addEventListener("click", () => applyPreset("accurate"));
-$("applyAdvancedBtn").addEventListener("click", () => applyAdvancedSettings());
-$("saveSettingsBtn").addEventListener("click", saveAdvancedSettings);
-$("resetAdvancedBtn").addEventListener("click", () => {
-  localStorage.removeItem("uli_v32_settings");
-  applyPreset("balanced");
-});
-
-$("directionSelect").addEventListener("change", event => {
-  conveyorDirection = event.target.value;
-  tracks.clear();
-  recentLocks.length = 0;
-  updateRoiOverlay();
-  setStatus("DIRECTION CHANGED — READY", "ready");
-});
-
-$("snapBeltBtn").addEventListener("click", () => addCurrentSample("belt"));
-$("snapGoodBtn").addEventListener("click", () => addCurrentSample("good"));
-$("snapBadBtn").addEventListener("click", () => addCurrentSample("bad"));
-
-$("uploadBelt").addEventListener("change", event => handleUpload(event, "belt"));
-$("uploadGood").addEventListener("change", event => handleUpload(event, "good"));
-$("uploadBad").addEventListener("change", event => handleUpload(event, "bad"));
-
-$("clearBeltBtn").addEventListener("click", () => { beltSamples = []; renderBanks(); calibrated = false; });
-$("clearGoodBtn").addEventListener("click", () => { goodSamples = []; renderBanks(); calibrated = false; });
-$("clearBadBtn").addEventListener("click", () => { badSamples = []; renderBanks(); calibrated = false; });
-
-$("burstBeltBtn").addEventListener("click", () => captureBurst("belt"));
-$("burstGoodBtn").addEventListener("click", () => captureBurst("good"));
-$("burstBadBtn").addEventListener("click", () => captureBurst("bad"));
-
-$("calibrateBtn").addEventListener("click", calibrate);
-$("saveProfileBtn").addEventListener("click", saveProfile);
-$("loadProfileBtn").addEventListener("click", loadProfile);
-$("clearProfileBtn").addEventListener("click", clearProfile);
-
-$("resetRejectBtn").addEventListener("click", () => {
-  rejectCount = 0;
-  updateTopUI();
-});
-
-$("alarmBtn").addEventListener("click", () => {
-  alarmEnabled = !alarmEnabled;
-  updateTopUI();
-});
-
-["goodThreshold", "pixelThreshold", "minimumArea"].forEach(id => {
-  $(id).addEventListener("input", updateSliderLabels);
-});
-
-video.addEventListener("loadedmetadata", resizeStage);
-window.addEventListener("resize", resizeStage);
-window.addEventListener("orientationchange", () => setTimeout(resizeStage, 250));
-
-roiCanvas.width = PROCESS_W;
-roiCanvas.height = PROCESS_H;
-maskCanvas.width = PROCESS_W;
-maskCanvas.height = PROCESS_H;
-productCanvas.width = 240;
-productCanvas.height = 180;
-
-updateSliderLabels();
-updateTopUI();
-renderBanks();
-loadAdvancedSettings();
-setStatus("READY — START CAMERA AND CALIBRATE", "ready");
-</script>
+    window.onload = () => {
+      startCamera('environment');
+      populateProfileDropdown();
+    };
+  </script>
 </body>
 </html>
