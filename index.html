@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Smart Dual-Bank Line Inspector</title>
+  <title>Masked ROI Industrial Inspector</title>
   <style>
     :root {
       --bg-color: #0f172a;
@@ -22,7 +22,6 @@
     h1 { font-size: 1.1rem; }
 
     .header-actions { display: flex; align-items: center; gap: 12px; }
-
     .counter-box { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); padding: 6px 12px; border-radius: 8px; text-align: center; }
     .counter-val { font-size: 1.4rem; font-weight: bold; color: var(--danger); }
     
@@ -32,18 +31,31 @@
     .card { background: var(--card-bg); border-radius: 12px; padding: 12px; border: 1px solid #334155; }
     .card h2 { font-size: 0.95rem; margin-bottom: 8px; color: var(--accent); }
 
-    .video-container { position: relative; width: 100%; height: 200px; background: #000; border-radius: 8px; overflow: hidden; }
+    .video-container { position: relative; width: 100%; height: 220px; background: #000; border-radius: 8px; overflow: hidden; }
     video { width: 100%; height: 100%; object-fit: contain; }
     
+    .roi-overlay {
+      position: absolute;
+      top: 20%; left: 20%; width: 60%; height: 60%;
+      border: 2px dashed #f59e0b;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      border-radius: 4px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    .roi-label { background: #f59e0b; color: #000; font-size: 0.6rem; font-weight: bold; padding: 2px 4px; }
+
     .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    button { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; cursor: pointer; }
+    button, label.btn-upload { background: var(--accent); color: white; border: none; padding: 7px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: bold; cursor: pointer; display: inline-block; text-align: center; }
+    input[type="file"] { display: none; }
     
     .status-badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 6px; width: 100%; text-align: center; }
     .status-pass { background: var(--success); }
     .status-fail { background: var(--danger); }
     .status-empty { background: #334155; color: var(--text-muted); }
     .status-standby { background: var(--warning); color: #000; }
-    .status-auto { background: #8b5cf6; color: white; }
 
     .slider-group { margin-top: 8px; font-size: 0.75rem; display: flex; align-items: center; gap: 8px; }
     .slider-group input { flex-grow: 1; }
@@ -62,8 +74,8 @@
 
   <header>
     <div>
-      <h1>Smart Dual-Bank Inspector</h1>
-      <p style="font-size: 0.7rem; color: var(--text-muted);">Precision detection, count logging & hardware zoom</p>
+      <h1>Masked ROI Inspector</h1>
+      <p style="font-size: 0.7rem; color: var(--text-muted);">Direct uploads & background subtraction engine</p>
     </div>
     
     <div class="header-actions">
@@ -82,6 +94,9 @@
       <h2>Live Line Camera</h2>
       <div class="video-container">
         <video id="webcam" autoplay playsinline muted></video>
+        <div class="roi-overlay">
+          <span class="roi-label">INSPECTION ROI</span>
+        </div>
       </div>
       
       <div class="controls">
@@ -97,43 +112,51 @@
       </div>
 
       <div class="slider-group">
-        <label>Defect Sensitivity:</label>
-        <input type="range" id="sensitivity" min="5" max="40" value="18">
-        <span id="sensVal">18%</span>
+        <label>Sensitivity:</label>
+        <input type="range" id="sensitivity" min="5" max="50" value="20">
+        <span id="sensVal">20%</span>
       </div>
 
       <div class="slider-group">
         <label>Belt Trigger:</label>
-        <input type="range" id="presenceSens" min="3" max="30" value="8">
-        <span id="presenceVal">8%</span>
+        <input type="range" id="presenceSens" min="3" max="30" value="10">
+        <span id="presenceVal">10%</span>
       </div>
 
       <div id="liveStatus" class="status-badge status-standby">STATUS: STANDBY</div>
     </div>
 
-    <!-- Reference Calibration Panel -->
+    <!-- Reference & Bank Management -->
     <div class="card">
-      <h2>Calibration & Banks</h2>
+      <h2>Reference Samples & Uploads</h2>
       
-      <!-- Belt Calibration -->
+      <!-- Belt Baseline Section -->
       <div style="margin-bottom: 8px;">
-        <button onclick="captureBeltFromCamera()" style="background: #475569; width: 100%;">1. Set Empty Belt Reference</button>
+        <strong style="font-size: 0.78rem; color: var(--text-muted);">Empty Belt Baseline</strong>
+        <div class="controls" style="margin-top: 4px;">
+          <button onclick="captureBeltFromCamera()" style="background: #475569;">Snap from Cam</button>
+          <label class="btn-upload" style="background: #475569;">
+            📁 Upload Belt Pic
+            <input type="file" accept="image/*" onchange="uploadBeltImage(event)">
+          </label>
+        </div>
       </div>
 
       <hr style="border: 0; border-top: 1px solid #334155; margin: 8px 0;">
 
       <!-- Good Target Bank -->
       <div style="margin-bottom: 8px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <strong style="font-size: 0.78rem; color: var(--success);">Good Targets (<span id="goodCount">0</span>)</strong>
-          <button onclick="startAutoGoodCapture()" style="background: #8b5cf6; padding: 4px 8px; font-size: 0.7rem;">⚡ Auto-Learn 5 Good</button>
-        </div>
+        <strong style="font-size: 0.78rem; color: var(--success);">Good Target Bank (<span id="goodCount">0</span>)</strong>
         <div id="goodStrip" class="sample-strip">
           <span style="font-size:0.7rem; color:var(--text-muted);">No good samples added</span>
         </div>
         <div class="controls" style="margin-top: 4px;">
-          <button onclick="captureGoodSample()" style="background: var(--success); font-size: 0.75rem;">+ Add Good (Manual)</button>
-          <button onclick="clearGoodSamples()" style="background: #475569; font-size: 0.75rem;">Clear Good</button>
+          <button onclick="captureGoodSample()" style="background: var(--success);">+ Snap Good</button>
+          <label class="btn-upload" style="background: var(--success);">
+            📁 Upload Good Pic
+            <input type="file" accept="image/*" multiple onchange="uploadGoodImage(event)">
+          </label>
+          <button onclick="clearGoodSamples()" style="background: #475569;">Clear</button>
         </div>
       </div>
 
@@ -141,13 +164,17 @@
 
       <!-- Reject Defect Bank -->
       <div>
-        <strong style="font-size: 0.78rem; color: var(--danger);">Known Defects / Rejects (<span id="badCount">0</span>)</strong>
+        <strong style="font-size: 0.78rem; color: var(--danger);">Known Rejects Bank (<span id="badCount">0</span>)</strong>
         <div id="badStrip" class="sample-strip">
           <span style="font-size:0.7rem; color:var(--text-muted);">No defect samples added</span>
         </div>
         <div class="controls" style="margin-top: 4px;">
-          <button onclick="captureBadSample()" style="background: var(--danger); font-size: 0.75rem;">+ Add Reject/Defect Sample</button>
-          <button onclick="clearBadSamples()" style="background: #475569; font-size: 0.75rem;">Clear Rejects</button>
+          <button onclick="captureBadSample()" style="background: var(--danger);">+ Snap Reject</button>
+          <label class="btn-upload" style="background: var(--danger);">
+            📁 Upload Reject Pic
+            <input type="file" accept="image/*" multiple onchange="uploadBadImage(event)">
+          </label>
+          <button onclick="clearBadSamples()" style="background: #475569;">Clear</button>
         </div>
       </div>
     </div>
@@ -160,13 +187,10 @@
     </div>
   </div>
 
-  <canvas id="beltCanvas" width="120" height="120" style="display:none;"></canvas>
-  <canvas id="procCanvas" width="120" height="120" style="display:none;"></canvas>
+  <canvas id="procCanvas" width="100" height="100" style="display:none;"></canvas>
 
   <script>
     const video = document.getElementById('webcam');
-    const beltCanvas = document.getElementById('beltCanvas');
-    const beltCtx = beltCanvas.getContext('2d');
     const procCanvas = document.getElementById('procCanvas');
     const procCtx = procCanvas.getContext('2d');
     
@@ -188,17 +212,16 @@
 
     let videoTrack = null;
     let isScanning = false;
-    let isAutoGoodCapturing = false;
-    let autoGoodTargetCount = 5;
-    
     let defectCount = 0;
-    let goodSamples = [];
-    let badSamples = [];
-    let beltImageData = null;
+    
+    let goodHistograms = [];
+    let goodThumbnails = [];
+    let badHistograms = [];
+    let badThumbnails = [];
+    let beltColorRange = null; 
     
     let isProductInZone = false;
     let hasLoggedCurrentDefect = false;
-    let previousPresenceScore = 0;
     let isMuted = false;
     let animationFrameId = null;
 
@@ -245,7 +268,6 @@
         video.srcObject = stream;
         videoTrack = stream.getVideoTracks()[0];
 
-        // Setup Zoom Capabilities
         const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
         if (capabilities.zoom) {
           zoomRange.min = capabilities.zoom.min;
@@ -266,87 +288,181 @@
           await videoTrack.applyConstraints({ advanced: [{ zoom: parseFloat(val) }] });
         } catch (e) { console.log(e); }
       } else {
-        // Fallback software zoom preview
         video.style.transform = `scale(${val})`;
         video.style.transformOrigin = "center center";
       }
     }
 
-    function captureGoodSample() {
-      const c = document.createElement('canvas');
-      c.width = 120; c.height = 120;
-      const ctx = c.getContext('2d');
-      ctx.drawImage(video, 0, 0, 120, 120);
-      const imgData = ctx.getImageData(0, 0, 120, 120);
+    // Extract central 60% ROI from Live Video or Loaded Image
+    function getROICanvas(source) {
+      const w = source.videoWidth || source.width || 640;
+      const h = source.videoHeight || source.height || 480;
 
-      goodSamples.push(imgData);
+      const sx = w * 0.20;
+      const sy = h * 0.20;
+      const sWidth = w * 0.60;
+      const sHeight = h * 0.60;
 
-      if (goodSamples.length === 1) goodStrip.innerHTML = '';
-      const img = document.createElement('img');
-      img.src = c.toDataURL('image/jpeg');
-      img.className = 'sample-thumb-good';
-      goodStrip.appendChild(img);
-
-      goodCountDisplay.innerText = goodSamples.length;
+      procCtx.drawImage(source, sx, sy, sWidth, sHeight, 0, 0, 100, 100);
+      return procCtx.getImageData(0, 0, 100, 100);
     }
 
-    function startAutoGoodCapture() {
-      if (!beltImageData) {
-        alert("Please tap '1. Set Empty Belt Reference' first!");
-        return;
+    // Background Masking: Evaluates pixels strictly ignoring empty belt colors
+    function computeMaskedHistogram(imageData) {
+      const hist = new Float32Array(16).fill(0);
+      const data = imageData.data;
+      let objectPixelCount = 0;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i+1];
+        const b = data[i+2];
+
+        // Mask out belt if baseline exists
+        if (beltColorRange) {
+          const isBeltPixel = Math.abs(r - beltColorRange.r) < 35 &&
+                              Math.abs(g - beltColorRange.g) < 35 &&
+                              Math.abs(b - beltColorRange.b) < 35;
+          if (isBeltPixel) continue; // Skip belt background
+        }
+
+        objectPixelCount++;
+
+        // Convert RGB to Hue Bin
+        const nr = r / 255, ng = g / 255, nb = b / 255;
+        const max = Math.max(nr, ng, nb), min = Math.min(nr, ng, nb);
+        const delta = max - min;
+
+        let h = 0;
+        if (delta !== 0) {
+          if (max === nr) h = ((ng - nb) / delta) % 6;
+          else if (max === ng) h = (nb - nr) / delta + 2;
+          else h = (nr - ng) / delta + 4;
+          h = Math.round(h * 60);
+          if (h < 0) h += 360;
+        }
+
+        const bin = Math.floor((h / 360) * 16) % 16;
+        hist[bin]++;
       }
-      clearGoodSamples();
-      isAutoGoodCapturing = true;
-      liveStatus.className = "status-badge status-auto";
-      liveStatus.innerText = `AUTO-LEARNING GOOD PACKS (0/${autoGoodTargetCount})`;
-      if (!isScanning) {
-        isScanning = true;
-        scanLoop();
+
+      // Normalize over valid non-belt pixels
+      if (objectPixelCount > 0) {
+        for (let i = 0; i < 16; i++) hist[i] /= objectPixelCount;
       }
+      
+      return { hist: hist, nonBeltRatio: objectPixelCount / (data.length / 4) };
     }
 
-    function clearGoodSamples() {
-      goodSamples = [];
-      goodStrip.innerHTML = '<span style="font-size:0.7rem; color:var(--text-muted);">No good samples added</span>';
-      goodCountDisplay.innerText = '0';
+    function compareHistograms(h1, h2) {
+      let diff = 0;
+      for (let i = 0; i < 16; i++) diff += Math.abs(h1[i] - h2[i]);
+      return (diff / 2) * 100;
     }
 
-    function captureBadSample() {
-      const c = document.createElement('canvas');
-      c.width = 120; c.height = 120;
-      const ctx = c.getContext('2d');
-      ctx.drawImage(video, 0, 0, 120, 120);
-      const imgData = ctx.getImageData(0, 0, 120, 120);
-
-      badSamples.push(imgData);
-
-      if (badSamples.length === 1) badStrip.innerHTML = '';
-      const img = document.createElement('img');
-      img.src = c.toDataURL('image/jpeg');
-      img.className = 'sample-thumb-bad';
-      badStrip.appendChild(img);
-
-      badCountDisplay.innerText = badSamples.length;
-    }
-
-    function clearBadSamples() {
-      badSamples = [];
-      badStrip.innerHTML = '<span style="font-size:0.7rem; color:var(--text-muted);">No defect samples added</span>';
-      badCountDisplay.innerText = '0';
-    }
-
+    // Belt Baseline Setup
     function captureBeltFromCamera() {
-      beltCtx.drawImage(video, 0, 0, beltCanvas.width, beltCanvas.height);
-      beltImageData = beltCtx.getImageData(0, 0, beltCanvas.width, beltCanvas.height);
-      alert("Empty Belt Reference Saved!");
+      const roiData = getROICanvas(video);
+      setBeltBaseline(roiData);
+      alert("Empty Belt Baseline Captured!");
+    }
+
+    function uploadBeltImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        const roiData = getROICanvas(img);
+        setBeltBaseline(roiData);
+        alert("Empty Belt File Baseline Loaded!");
+      };
+      img.src = URL.createObjectURL(file);
+    }
+
+    function setBeltBaseline(roiData) {
+      const d = roiData.data;
+      let totalR = 0, totalG = 0, totalB = 0;
+      const count = d.length / 4;
+      for (let i = 0; i < d.length; i += 4) {
+        totalR += d[i]; totalG += d[i+1]; totalB += d[i+2];
+      }
+      beltColorRange = { r: totalR / count, g: totalG / count, b: totalB / count };
+    }
+
+    // Good Target Handlers
+    function captureGoodSample() {
+      const roiData = getROICanvas(video);
+      const res = computeMaskedHistogram(roiData);
+      goodHistograms.push(res.hist);
+      goodThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
+      renderStrips();
+    }
+
+    function uploadGoodImage(e) {
+      const files = Array.from(e.target.files);
+      files.forEach(file => {
+        const img = new Image();
+        img.onload = () => {
+          const roiData = getROICanvas(img);
+          const res = computeMaskedHistogram(roiData);
+          goodHistograms.push(res.hist);
+          goodThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
+          renderStrips();
+        };
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    // Bad Target Handlers
+    function captureBadSample() {
+      const roiData = getROICanvas(video);
+      const res = computeMaskedHistogram(roiData);
+      badHistograms.push(res.hist);
+      badThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
+      renderStrips();
+    }
+
+    function uploadBadImage(e) {
+      const files = Array.from(e.target.files);
+      files.forEach(file => {
+        const img = new Image();
+        img.onload = () => {
+          const roiData = getROICanvas(img);
+          const res = computeMaskedHistogram(roiData);
+          badHistograms.push(res.hist);
+          badThumbnails.push(procCanvas.toDataURL('image/jpeg', 0.8));
+          renderStrips();
+        };
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    function clearGoodSamples() { goodHistograms = []; goodThumbnails = []; renderStrips(); }
+    function clearBadSamples() { badHistograms = []; badThumbnails = []; renderStrips(); }
+
+    function renderStrips() {
+      goodStrip.innerHTML = goodThumbnails.length === 0 ? '<span style="font-size:0.7rem; color:var(--text-muted);">No good samples added</span>' : '';
+      goodThumbnails.forEach(url => {
+        const img = document.createElement('img');
+        img.src = url; img.className = 'sample-thumb-good';
+        goodStrip.appendChild(img);
+      });
+      goodCountDisplay.innerText = goodThumbnails.length;
+
+      badStrip.innerHTML = badThumbnails.length === 0 ? '<span style="font-size:0.7rem; color:var(--text-muted);">No defect samples added</span>' : '';
+      badThumbnails.forEach(url => {
+        const img = document.createElement('img');
+        img.src = url; img.className = 'sample-thumb-bad';
+        badStrip.appendChild(img);
+      });
+      badCountDisplay.innerText = badThumbnails.length;
     }
 
     function toggleScanning() {
-      if (goodSamples.length === 0) {
-        alert("Add or Auto-Capture at least ONE Good Target Sample first!");
+      if (goodHistograms.length === 0) {
+        alert("Upload or Snap at least ONE Good Target Sample first!");
         return;
       }
-      isAutoGoodCapturing = false;
       isScanning = !isScanning;
       const btn = document.getElementById('toggleScanBtn');
       
@@ -367,89 +483,53 @@
       if (!isScanning) return;
       
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        procCtx.drawImage(video, 0, 0, procCanvas.width, procCanvas.height);
-        const currentData = procCtx.getImageData(0, 0, procCanvas.width, procCanvas.height);
+        const roiData = getROICanvas(video);
+        const { hist: currentHist, nonBeltRatio } = computeMaskedHistogram(roiData);
         
-        let objectPresenceScore = beltImageData ? calculatePixelDiff(beltImageData.data, currentData.data) : 20;
-        const objectTrigger = parseFloat(presenceInput.value);
+        const beltTrigger = parseFloat(presenceInput.value) / 100;
 
-        const frameDelta = Math.abs(objectPresenceScore - previousPresenceScore);
-        previousPresenceScore = objectPresenceScore;
-
-        // EMPTY BELT DETECTED
-        if (objectPresenceScore < objectTrigger) {
-          if (!isAutoGoodCapturing) {
-            liveStatus.className = "status-badge status-empty";
-            liveStatus.innerText = "BELT CLEAR";
-          }
+        // Check if object is inside inspection zone
+        if (nonBeltRatio < beltTrigger) {
+          liveStatus.className = "status-badge status-empty";
+          liveStatus.innerText = "BELT CLEAR";
           isProductInZone = false;
-          hasLoggedCurrentDefect = false; // Reset trigger lock when zone clears
+          hasLoggedCurrentDefect = false;
         } 
-        // PRODUCT IN INSPECTION ZONE
         else {
-          // Re-arm state machine if a distinct gap/seam transition passes
-          if (frameDelta > 14.0) {
-            isProductInZone = false;
-            hasLoggedCurrentDefect = false;
+          // Compute difference to Good Target Histograms
+          let minGoodDiff = 999;
+          for (let i = 0; i < goodHistograms.length; i++) {
+            const diff = compareHistograms(goodHistograms[i], currentHist);
+            if (diff < minGoodDiff) minGoodDiff = diff;
           }
 
-          // 1. AUTO-LEARN MODE LOGIC
-          if (isAutoGoodCapturing) {
-            if (!isProductInZone) {
-              // Ensure we don't save empty belt as good sample
-              if (objectPresenceScore >= objectTrigger + 2.0) {
-                captureGoodSample();
-                isProductInZone = true;
-                liveStatus.innerText = `AUTO-LEARNING GOOD PACKS (${goodSamples.length}/${autoGoodTargetCount})`;
+          // Compute difference to Bad Defect Histograms
+          let minBadDiff = 999;
+          for (let i = 0; i < badHistograms.length; i++) {
+            const diff = compareHistograms(badHistograms[i], currentHist);
+            if (diff < minBadDiff) minBadDiff = diff;
+          }
 
-                if (goodSamples.length >= autoGoodTargetCount) {
-                  isAutoGoodCapturing = false;
-                  liveStatus.className = "status-badge status-pass";
-                  liveStatus.innerText = "AUTO-LEARN COMPLETE! READY TO INSPECT";
-                  const btn = document.getElementById('toggleScanBtn');
-                  btn.innerText = "Stop Inspection";
-                  btn.style.background = "var(--danger)";
-                }
-              }
-            }
-          } 
-          // 2. NORMAL INSPECTION LOGIC
-          else {
-            // Find best match in GOOD bank
-            let minGoodDiff = 999;
-            for (let i = 0; i < goodSamples.length; i++) {
-              const diff = calculatePixelDiff(goodSamples[i].data, currentData.data);
-              if (diff < minGoodDiff) minGoodDiff = diff;
-            }
+          const defectThreshold = parseFloat(sensitivityInput.value);
+          
+          const isRejectMatch = (badHistograms.length > 0) && (minBadDiff < minGoodDiff) && (minBadDiff < defectThreshold);
+          const isGoodDeviation = minGoodDiff > defectThreshold;
 
-            // Find best match in BAD bank
-            let minBadDiff = 999;
-            for (let i = 0; i < badSamples.length; i++) {
-              const diff = calculatePixelDiff(badSamples[i].data, currentData.data);
-              if (diff < minBadDiff) minBadDiff = diff;
-            }
+          if (isGoodDeviation || isRejectMatch) {
+            liveStatus.className = "status-badge status-fail";
+            const reason = isRejectMatch ? "KNOWN REJECT MATCH" : `${minGoodDiff.toFixed(1)}% Object Shift`;
+            liveStatus.innerText = `DEFECT DETECTED (${reason})`;
 
-            const defectThreshold = parseFloat(sensitivityInput.value);
-            
-            const isRejectMatch = (badSamples.length > 0) && (minBadDiff < minGoodDiff);
-            const isGoodDeviation = minGoodDiff > defectThreshold;
-
-            if (isGoodDeviation || isRejectMatch) {
-              liveStatus.className = "status-badge status-fail";
-              const reason = isRejectMatch ? "KNOWN DEFECT MATCH" : `${minGoodDiff.toFixed(1)}% Diff`;
-              liveStatus.innerText = `DEFECT DETECTED (${reason})`;
-
-              if (!hasLoggedCurrentDefect) {
-                triggerHighDecibelAlarm();
-                logDefect(minGoodDiff, isRejectMatch);
-                hasLoggedCurrentDefect = true;
-                isProductInZone = true;
-              }
-            } else {
-              liveStatus.className = "status-badge status-pass";
-              liveStatus.innerText = `PASS (${minGoodDiff.toFixed(1)}% Diff)`;
+            if (!hasLoggedCurrentDefect) {
+              triggerHighDecibelAlarm();
+              logDefect(minGoodDiff, isRejectMatch);
+              hasLoggedCurrentDefect = true;
               isProductInZone = true;
             }
+          } else {
+            liveStatus.className = "status-badge status-pass";
+            liveStatus.innerText = `PASS (${minGoodDiff.toFixed(1)}% Match)`;
+            isProductInZone = true;
           }
         }
       }
@@ -457,27 +537,12 @@
       animationFrameId = requestAnimationFrame(scanLoop);
     }
 
-    function calculatePixelDiff(ref, current) {
-      let totalDiff = 0;
-      const length = ref.length;
-
-      for (let i = 0; i < length; i += 16) { 
-        const rDiff = Math.abs(ref[i] - current[i]);
-        const gDiff = Math.abs(ref[i+1] - current[i+1]);
-        const bDiff = Math.abs(ref[i+2] - current[i+2]);
-        totalDiff += (rDiff + gDiff + bDiff) / 3;
-      }
-
-      const sampledPixels = length / 16;
-      return (totalDiff / (sampledPixels * 255)) * 100;
-    }
-
     function logDefect(score, isRejectMatch) {
       defectCount++;
       document.getElementById('defectCount').innerText = defectCount;
 
       const timeStr = new Date().toLocaleTimeString();
-      const snapshotUrl = procCanvas.toDataURL('image/jpeg', 0.6);
+      const snapshotUrl = procCanvas.toDataURL('image/jpeg', 0.8);
 
       if (defectCount === 1) logList.innerHTML = '';
 
@@ -487,7 +552,7 @@
         <img src="${snapshotUrl}" alt="Defect Snapshot"/>
         <div class="log-info">
           <strong>Defect #${defectCount}</strong> - ${timeStr}<br/>
-          <span style="color:var(--danger)">${isRejectMatch ? 'Matched Known Reject Profile' : 'Deviation: ' + score.toFixed(1) + '%'}</span>
+          <span style="color:var(--danger)">${isRejectMatch ? 'Matched Uploaded Reject Pic' : 'Object Shift: ' + score.toFixed(1) + '%'}</span>
         </div>
       `;
       logList.insertBefore(logItem, logList.firstChild);
