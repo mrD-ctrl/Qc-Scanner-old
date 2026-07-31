@@ -6,7 +6,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
-  <title>Universal Line Inspector — OCR & Artwork v8</title>
+  <title>Universal Line Inspector — Full Camera v8.1</title>
 
   <style>
     :root {
@@ -110,19 +110,35 @@
     .video-container {
       position: relative;
       width: 100%;
-      height: clamp(440px, 76vh, 820px);
-      min-height: 440px;
+      height: auto;
+      min-height: 0;
+      aspect-ratio: 16 / 9;
       overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: block;
       background: #000;
       border-radius: 9px;
     }
 
     video {
+      position: absolute;
+      inset: 0;
       width: 100%;
       height: 100%;
+      object-fit: fill;
+      background: #000;
+    }
+
+    .video-container:fullscreen,
+    .video-container:-webkit-full-screen {
+      width: 100vw;
+      height: 100vh;
+      max-width: none;
+      border-radius: 0;
+      background: #000;
+    }
+
+    .video-container:fullscreen video,
+    .video-container:-webkit-full-screen video {
       object-fit: contain;
     }
 
@@ -136,10 +152,10 @@
 
     .roi-overlay {
       position: absolute;
-      left: 2.5%;
-      top: 3%;
-      width: 95%;
-      height: 94%;
+      left: 1.5%;
+      top: 2%;
+      width: 97%;
+      height: 96%;
       border: 3px dashed var(--warning);
       border-radius: 7px;
       box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.24);
@@ -416,7 +432,7 @@
         <canvas id="displayCanvas"></canvas>
 
         <div class="roi-overlay" id="roiOverlay">
-          <span class="roi-label">WIDE BELT INSPECTION AREA</span>
+          <span class="roi-label">FULL CAMERA INSPECTION AREA</span>
         </div>
       </div>
 
@@ -424,7 +440,13 @@
         <button id="rearCamBtn">Rear Cam</button>
         <button id="frontCamBtn">Front Cam</button>
         <button class="success" id="scanBtn">Start Inspection</button>
+        <button class="secondary" id="fullscreenCameraBtn">Full Screen Camera</button>
       </div>
+
+      <p class="helper">
+        The frame now uses the camera's real aspect ratio. Rotate the phone
+        horizontally for the widest belt view, or press Full Screen Camera.
+      </p>
 
       <div class="slider-row">
         <label for="zoomRange">Camera zoom</label>
@@ -639,10 +661,10 @@
     "use strict";
 
     const ROI = Object.freeze({
-      x: 0.025,
-      y: 0.03,
-      width: 0.95,
-      height: 0.94
+      x: 0.015,
+      y: 0.02,
+      width: 0.97,
+      height: 0.96
     });
 
     const PROCESS_SIZE = 320;
@@ -699,6 +721,7 @@
     const objectPreviewCtx = objectPreview.getContext("2d");
 
     const scanBtn = document.getElementById("scanBtn");
+    const fullscreenCameraBtn = document.getElementById("fullscreenCameraBtn");
     const liveStatus = document.getElementById("liveStatus");
     const muteBtn = document.getElementById("muteBtn");
     const resetRejectBtn = document.getElementById("resetRejectBtn");
@@ -807,6 +830,40 @@
       updateTopControls();
     }
 
+
+    function updateCameraStageAspectRatio() {
+      const streamWidth = video.videoWidth || 1920;
+      const streamHeight = video.videoHeight || 1080;
+
+      if (streamWidth <= 0 || streamHeight <= 0) return;
+
+      stage.style.aspectRatio = `${streamWidth} / ${streamHeight}`;
+      stage.style.height = "auto";
+    }
+
+    async function toggleCameraFullscreen() {
+      try {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          }
+          return;
+        }
+
+        if (stage.requestFullscreen) {
+          await stage.requestFullscreen();
+        } else if (stage.webkitRequestFullscreen) {
+          stage.webkitRequestFullscreen();
+        } else if (video.webkitEnterFullscreen) {
+          video.webkitEnterFullscreen();
+        }
+      } catch (error) {
+        console.error("Fullscreen error:", error);
+      }
+    }
+
     async function startCamera(facingMode = "environment") {
       stopCamera();
 
@@ -814,8 +871,9 @@
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: facingMode },
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
+            width: { ideal: 1920, min: 640 },
+            height: { ideal: 1080, min: 480 },
+            aspectRatio: { ideal: 1.7777777778 },
             frameRate: { ideal: 60, min: 24 }
           },
           audio: false
@@ -825,6 +883,7 @@
         videoTrack = stream.getVideoTracks()[0];
 
         await video.play();
+        updateCameraStageAspectRatio();
         resizeDisplayCanvas();
       } catch (error) {
         alert(`Camera access error: ${error.message}`);
@@ -882,31 +941,12 @@
     }
 
     function getDisplayedVideoRect() {
-      const stageRect = stage.getBoundingClientRect();
-      const videoWidth = video.videoWidth || 16;
-      const videoHeight = video.videoHeight || 9;
-
-      const videoAspect = videoWidth / videoHeight;
-      const stageAspect = stageRect.width / stageRect.height;
-
-      let drawWidth;
-      let drawHeight;
-      let offsetX;
-      let offsetY;
-
-      if (videoAspect > stageAspect) {
-        drawWidth = stageRect.width;
-        drawHeight = drawWidth / videoAspect;
-        offsetX = 0;
-        offsetY = (stageRect.height - drawHeight) / 2;
-      } else {
-        drawHeight = stageRect.height;
-        drawWidth = drawHeight * videoAspect;
-        offsetY = 0;
-        offsetX = (stageRect.width - drawWidth) / 2;
-      }
-
-      return { drawWidth, drawHeight, offsetX, offsetY };
+      return {
+        offsetX: 0,
+        offsetY: 0,
+        drawWidth: stage.clientWidth,
+        drawHeight: stage.clientHeight
+      };
     }
 
     function getLiveROIImageData() {
@@ -2704,7 +2744,22 @@
       });
     }
 
-    window.addEventListener("resize", resizeDisplayCanvas);
+    window.addEventListener("resize", () => {
+      updateCameraStageAspectRatio();
+      resizeDisplayCanvas();
+    });
+
+    video.addEventListener("loadedmetadata", () => {
+      updateCameraStageAspectRatio();
+      resizeDisplayCanvas();
+    });
+
+    window.addEventListener("orientationchange", () => {
+      setTimeout(() => {
+        updateCameraStageAspectRatio();
+        resizeDisplayCanvas();
+      }, 250);
+    });
 
     window.addEventListener("load", async () => {
       updateTopControls();
