@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Universal Line Inspector — Normalized Model V4</title>
+  <title>Universal Line Inspector — Normalized Model V4.1.1</title>
   <style>
     :root {
       color-scheme: dark;
@@ -328,6 +328,61 @@
     @media (max-width:520px) {
       .settings-grid { grid-template-columns:1fr; }
     }
+  
+    .settings-accordion {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .settings-accordion details {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-2);
+      overflow: hidden;
+    }
+
+    .settings-accordion summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 14px 16px;
+      font-weight: 800;
+      color: #dbeafe;
+      user-select: none;
+      position: relative;
+    }
+
+    .settings-accordion summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .settings-accordion summary::after {
+      content: "＋";
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #60a5fa;
+      font-size: 22px;
+    }
+
+    .settings-accordion details[open] summary::after {
+      content: "−";
+    }
+
+    .settings-accordion details[open] summary {
+      border-bottom: 1px solid var(--line);
+      background: rgba(59,130,246,.08);
+    }
+
+    .settings-accordion .settings-grid {
+      padding: 14px;
+      margin-top: 0;
+    }
+
+    .settings-actions {
+      margin-top: 14px;
+    }
   </style>
 </head>
 <body>
@@ -335,7 +390,7 @@
   <header>
     <div>
       <h1>Universal Line Inspector</h1>
-      <div class="helper">Normalized Model V4</div>
+      <div class="helper">Normalized Model V4.1</div>
     </div>
 
     <div class="top-actions">
@@ -420,6 +475,7 @@
   </section>
 
 
+
   <section class="panel">
     <h2>Advanced Inspection Settings</h2>
 
@@ -427,118 +483,148 @@
       <button id="presetFastBtn" class="primary">Fast Line Preset</button>
       <button id="presetBalancedBtn" class="success">Balanced Preset</button>
       <button id="presetAccurateBtn" class="purple">Accuracy Preset</button>
-      <button id="resetAdvancedBtn">Reset Settings</button>
-      <button id="saveSettingsBtn">Save Settings</button>
     </div>
 
     <p class="helper">
-      Change settings while inspection is stopped. Any setting that changes image
-      processing or detection requires recalibration.
+      Presets are always visible. Detailed settings stay closed by default and
+      only expand when you need to adjust them.
     </p>
 
-    <div class="settings-grid">
-      <label>Processing resolution
-        <select id="processingPreset">
-          <option value="256x192">Fast — 256×192</option>
-          <option value="320x240" selected>Balanced — 320×240</option>
-          <option value="384x288">Detailed — 384×288</option>
-        </select>
-      </label>
+    <div class="settings-accordion">
+      <details>
+        <summary>Camera & Processing</summary>
+        <div class="settings-grid">
+          <label>Processing resolution
+            <select id="processingPreset">
+              <option value="256x192">Fast — 256×192</option>
+              <option value="320x240" selected>Balanced — 320×240</option>
+              <option value="384x288">Detailed — 384×288</option>
+            </select>
+          </label>
 
-      <label>Target processing FPS
-        <input id="targetFps" type="number" min="8" max="60" value="26">
-      </label>
+          <label>Target processing FPS
+            <input id="targetFps" type="number" min="8" max="60" value="26">
+          </label>
 
-      <label>Track match distance
-        <input id="cfgMatchDistance" type="number" min="30" max="180" value="105">
-      </label>
+          <label>Minimum sharpness
+            <input id="cfgMinSharpness" type="number" min="0" max="80" step="0.5" value="5">
+          </label>
 
-      <label>Track missed-frame allowance
-        <input id="cfgMaxMisses" type="number" min="1" max="15" value="4">
-      </label>
+          <label>Border safety margin
+            <input id="cfgBorderMargin" type="number" min="0" max="20" value="3">
+          </label>
+        </div>
+      </details>
 
-      <label>Minimum track age
-        <input id="cfgMinTrackAge" type="number" min="1" max="8" value="1">
-      </label>
+      <details>
+        <summary>Tracking & Back-to-Back Products</summary>
+        <div class="settings-grid">
+          <label>Track match distance
+            <input id="cfgMatchDistance" type="number" min="30" max="180" value="105">
+          </label>
 
-      <label>Same-product lockout
-        <input id="cfgLockMs" type="number" min="80" max="1200" step="20" value="320">
-      </label>
+          <label>Track missed-frame allowance
+            <input id="cfgMaxMisses" type="number" min="1" max="15" value="4">
+          </label>
 
-      <label>Minimum product separation
-        <input id="cfgMinSeparation" type="number" min="2" max="40" value="7">
-      </label>
+          <label>Minimum track age
+            <input id="cfgMinTrackAge" type="number" min="1" max="8" value="1">
+          </label>
 
-      <label>Maximum active tracks
-        <input id="cfgMaxTracks" type="number" min="2" max="30" value="12">
-      </label>
+          <label>Same-product lockout
+            <input id="cfgLockMs" type="number" min="80" max="1200" step="20" value="320">
+          </label>
 
-      <label>Entry-zone position
-        <input id="cfgEntryZone" type="number" min="5" max="35" value="18">
-      </label>
+          <label>Minimum product separation
+            <input id="cfgMinSeparation" type="number" min="2" max="40" value="7">
+          </label>
 
-      <label>Inspection-zone start
-        <input id="cfgDecisionStart" type="number" min="10" max="70" value="34">
-      </label>
+          <label>Maximum active tracks
+            <input id="cfgMaxTracks" type="number" min="2" max="30" value="12">
+          </label>
+        </div>
+      </details>
 
-      <label>Inspection-zone end
-        <input id="cfgDecisionEnd" type="number" min="30" max="95" value="70">
-      </label>
+      <details>
+        <summary>Inspection Zones</summary>
+        <div class="settings-grid">
+          <label>Entry-zone position
+            <input id="cfgEntryZone" type="number" min="5" max="35" value="18">
+          </label>
 
-      <label>Minimum sharpness
-        <input id="cfgMinSharpness" type="number" min="0" max="80" step="0.5" value="5">
-      </label>
+          <label>Inspection-zone start
+            <input id="cfgDecisionStart" type="number" min="10" max="70" value="34">
+          </label>
 
-      <label>Border safety margin
-        <input id="cfgBorderMargin" type="number" min="0" max="20" value="3">
-      </label>
+          <label>Inspection-zone end
+            <input id="cfgDecisionEnd" type="number" min="30" max="95" value="70">
+          </label>
+        </div>
+      </details>
 
-      <label>Best frames per product
-        <input id="cfgVoteFrames" type="number" min="1" max="7" value="3">
-      </label>
+      <details>
+        <summary>Best-Frame Voting</summary>
+        <div class="settings-grid">
+          <label>Best frames per product
+            <input id="cfgVoteFrames" type="number" min="1" max="7" value="3">
+          </label>
 
-      <label>PASS votes required
-        <input id="cfgPassVotes" type="number" min="1" max="7" value="2">
-      </label>
+          <label>PASS votes required
+            <input id="cfgPassVotes" type="number" min="1" max="7" value="2">
+          </label>
 
-      <label>Upside-down veto margin
-        <input id="cfgUpsideDownMargin" type="number" min="0" max="15" step="0.5" value="2">
-      </label>
+          <label>Upside-down veto margin
+            <input id="cfgUpsideDownMargin" type="number" min="0" max="15" step="0.5" value="2">
+          </label>
 
-      <label>Known-reject veto margin
-        <input id="cfgBadVetoMargin" type="number" min="0" max="15" step="0.5" value="2">
-      </label>
+          <label>Known-reject veto margin
+            <input id="cfgBadVetoMargin" type="number" min="0" max="15" step="0.5" value="2">
+          </label>
+        </div>
+      </details>
 
-      <label>Morphology strength
-        <select id="cfgMorphology">
-          <option value="0">Off</option>
-          <option value="1" selected>Light</option>
-          <option value="2">Medium</option>
-        </select>
-      </label>
+      <details>
+        <summary>Object Extraction & Mask</summary>
+        <div class="settings-grid">
+          <label>Morphology strength
+            <select id="cfgMorphology">
+              <option value="0">Off</option>
+              <option value="1" selected>Light</option>
+              <option value="2">Medium</option>
+            </select>
+          </label>
 
-      <label>Model acceptance multiplier
-        <input id="cfgModelMultiplier" type="number" min="1" max="5" step="0.1" value="2.2">
-      </label>
+          <label>Rotation normalization
+            <select id="cfgRotationNormalize">
+              <option value="1" selected>On</option>
+              <option value="0">Off</option>
+            </select>
+          </label>
+        </div>
+      </details>
 
-      <label>Minimum model threshold
-        <input id="cfgModelFloor" type="number" min="2" max="35" step="0.5" value="8">
-      </label>
+      <details>
+        <summary>Learned Model Sensitivity</summary>
+        <div class="settings-grid">
+          <label>Model acceptance multiplier
+            <input id="cfgModelMultiplier" type="number" min="1" max="5" step="0.1" value="2.2">
+          </label>
 
-      <label>Maximum model threshold
-        <input id="cfgModelCeiling" type="number" min="8" max="60" step="0.5" value="28">
-      </label>
+          <label>Minimum model threshold
+            <input id="cfgModelFloor" type="number" min="2" max="35" step="0.5" value="8">
+          </label>
 
-      <label>Rotation normalization
-        <select id="cfgRotationNormalize">
-          <option value="1" selected>On</option>
-          <option value="0">Off</option>
-        </select>
-      </label>
+          <label>Maximum model threshold
+            <input id="cfgModelCeiling" type="number" min="8" max="60" step="0.5" value="28">
+          </label>
+        </div>
+      </details>
     </div>
 
-    <div class="controls">
+    <div class="controls settings-actions">
       <button id="applyAdvancedBtn" class="warning">Apply Settings</button>
+      <button id="saveSettingsBtn">Save Settings</button>
+      <button id="resetAdvancedBtn">Reset Settings</button>
     </div>
 
     <p id="advancedMessage" class="helper">
