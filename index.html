@@ -6,9 +6,9 @@
 <style>
 :root{color-scheme:dark;--bg:#08111f;--panel:#142036;--panel2:#0b1426;--line:#2d3d5c;--text:#f8fafc;--muted:#9fb0c8;--blue:#3b82f6;--green:#10b981;--red:#ef4444;--orange:#f59e0b;--purple:#7c3aed}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.app{width:min(1100px,100%);margin:auto;padding:14px}header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:15px}h1{font-size:clamp(25px,6vw,39px);margin:0 0 4px}h2{color:#60a5fa;margin:0 0 13px}.muted,.help{color:var(--muted);line-height:1.45}.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:15px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}button,.upload,select.main{border:0;border-radius:10px;padding:11px 14px;color:#fff;background:#52627a;font-weight:750;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}.primary{background:var(--blue)}.good{background:var(--green)}.bad{background:var(--red)}.warn{background:var(--orange);color:#111827}.purple{background:var(--purple)}input[type=file]{display:none}.top{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.counter{border:2px solid var(--red);background:#28151e;border-radius:13px;padding:7px 12px;text-align:center;min-width:100px}.counter span{display:block;color:#fecaca;font-size:11px}.counter strong{font-size:29px;color:#f87171}.stage{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:12px;overflow:hidden}video,.overlay{position:absolute;inset:0;width:100%;height:100%}video{object-fit:contain;background:#000}.overlay{pointer-events:none}.roi{position:absolute;border:3px dashed var(--orange);border-radius:10px;pointer-events:none}.gate{position:absolute;pointer-events:none}.entry{border:2px dashed #60a5fa}.inspect{border:3px solid #34d399;background:rgba(16,185,129,.07)}.status{margin-top:13px;padding:14px;border-radius:11px;text-align:center;font-size:clamp(17px,4vw,24px);font-weight:850;background:#24466f}.status.inspecting{background:#5b21b6}.status.pass{background:#065f46}.status.reject{background:#8b1e22}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;margin-top:11px}.metric{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px;text-align:center}.metric strong{display:block;color:#60a5fa;font-size:19px}.metric span{font-size:12px;color:var(--muted)}.debug{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:11px}.debug figure{margin:0;background:#020617;border:1px solid var(--line);border-radius:10px;overflow:hidden}.debug canvas{display:block;width:100%;aspect-ratio:16/9;background:#000}.debug figcaption{text-align:center;color:var(--muted);font-size:12px;padding:6px}.bank{padding:13px 0;border-bottom:1px solid var(--line)}.bank:last-child{border-bottom:0}.thumbs{display:flex;flex-wrap:wrap;gap:7px;min-height:55px;margin:9px 0}.thumb{width:76px;aspect-ratio:4/3;object-fit:cover;border-radius:8px;border:3px solid #64748b}.thumb.belt{border-color:#38bdf8}.thumb.good{border-color:#34d399}.thumb.bad{border-color:#f87171}.log{display:grid;gap:8px}.log-item{display:grid;grid-template-columns:102px 1fr;gap:10px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:9px}.log-item img{width:102px;aspect-ratio:4/3;object-fit:cover;border-radius:7px}details{background:var(--panel2);border:1px solid var(--line);border-radius:11px;margin-top:9px;overflow:hidden}summary{padding:13px 15px;font-weight:800;cursor:pointer;list-style:none;position:relative}summary::-webkit-details-marker{display:none}summary:after{content:"＋";position:absolute;right:15px;color:#60a5fa}details[open] summary:after{content:"−"}details[open] summary{border-bottom:1px solid var(--line)}.settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:12px}.settings label{display:grid;gap:5px;color:var(--muted);font-size:12px}.settings input,.settings select{width:100%;background:#07101f;color:#fff;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:14px}.device-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:8px}.device-item{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px;font-size:13px}@media(max-width:700px){.settings{grid-template-columns:repeat(2,minmax(0,1fr))}.top{max-width:52%}}@media(max-width:480px){.settings{grid-template-columns:1fr}.log-item{grid-template-columns:84px 1fr}.log-item img{width:84px}}
 </style></head><body><div class="app">
-<header><div><h1>Universal Line Inspector</h1><div class="muted">Validated Strict Inspector V5.3</div></div><div class="top"><div class="counter"><span>REJECTS</span><strong id="rejectCount">0</strong></div><button id="resetReject">Reset</button><button id="alarmToggle">🔊 Alarm On</button></div></header>
+<header><div><h1>Universal Line Inspector</h1><div class="muted">Validated Strict Inspector V5.3.1</div></div><div class="top"><div class="counter"><span>REJECTS</span><strong id="rejectCount">0</strong></div><button id="resetReject">Reset</button><button id="alarmToggle">🔊 Alarm On</button></div></header>
 <section class="panel"><h2>Live Inspection</h2><div id="stage" class="stage"><video id="video" playsinline muted></video><canvas id="overlay" class="overlay"></canvas><div id="roiBox" class="roi"></div><div id="entryGate" class="gate entry"></div><div id="inspectGate" class="gate inspect"></div></div><div class="actions"><button id="rearCamera" class="primary">Rear Camera</button><button id="frontCamera" class="primary">Front Camera</button><button id="startStop" class="good">Start Inspection</button><button id="fullscreen">Full Screen</button></div><div class="actions"><button data-roi="full">Full ROI</button><button data-roi="vertical">Vertical Belt</button><button data-roi="horizontal">Horizontal Belt</button><select id="direction" class="main"><option value="down">Top → Bottom</option><option value="up">Bottom → Top</option><option value="right">Left → Right</option><option value="left">Right → Left</option></select></div><div id="status" class="status">START CAMERA — THEN CALIBRATE</div><div class="metrics"><div class="metric"><strong id="cameraMode">—</strong><span>Camera mode</span></div><div class="metric"><strong id="processMode">—</strong><span>Processing mode</span></div><div class="metric"><strong id="fps">0</strong><span>Processed FPS</span></div><div class="metric"><strong id="session">IDLE</strong><span>Product session</span></div><div class="metric"><strong id="quality">—</strong><span>Best quality</span></div><div class="metric"><strong id="decision">—</strong><span>Last decision</span></div></div><div class="debug"><figure><canvas id="roiCanvas"></canvas><figcaption>Camera ROI</figcaption></figure><figure><canvas id="maskCanvas"></canvas><figcaption>Adaptive mask</figcaption></figure><figure><canvas id="productCanvas"></canvas><figcaption>Best product frame</figcaption></figure></div></section>
-<section class="panel"><h2>Quick Calibration</h2><p class="help">Fix the camera firmly. Capture the empty belt first. Good references must use the same camera position and lighting as live inspection.</p><div class="bank"><h3>Empty Belt (<span id="beltCount">0</span>)</h3><div id="beltThumbs" class="thumbs"></div><div class="actions"><button id="captureBelt">Capture Belt</button><button id="burstBelt">Automatic Belt Burst</button><label class="upload">Upload Belt<input id="uploadBelt" type="file" accept="image/*" multiple></label><button id="clearBelt">Clear</button></div></div><div class="bank"><h3 style="color:#34d399">Good Products (<span id="goodCount">0</span>)</h3><div id="goodThumbs" class="thumbs"></div><div class="actions"><button id="captureGood" class="good">Capture Good</button><button id="burstGood" class="good">Automatic Good Burst</button><button id="movingGoodBurst" class="good">Moving Good Calibration</button><label class="upload good">Upload Good<input id="uploadGood" type="file" accept="image/*" multiple></label><button id="clearGood">Clear</button></div></div><div class="bank"><h3 style="color:#f87171">Known Rejects — Optional (<span id="badCount">0</span>)</h3><div id="badThumbs" class="thumbs"></div><div class="actions"><button id="captureBad" class="bad">Capture Reject</button><button id="burstBad" class="bad">Automatic Reject Burst</button><label class="upload bad">Upload Reject<input id="uploadBad" type="file" accept="image/*" multiple></label><button id="clearBad">Clear</button></div></div><div class="actions"><button id="calibrate" class="warn">Build Inspection Model</button><button id="saveProfile">Save Profile</button><button id="loadProfile">Load Profile</button><button id="deleteProfile">Delete Profile</button></div><p id="calibrationMessage" class="help">Minimum: 8 belt frames and 12 varied frames of ONE exact SKU and ONE inspected face. The strict artwork gate checks local print, edge and contrast layout.</p></section>
+<section class="panel"><h2>Quick Calibration</h2><p class="help">Fix the camera firmly. Capture the empty belt first. Good references must use the same camera position and lighting as live inspection.</p><div class="bank"><h3>Empty Belt (<span id="beltCount">0</span>)</h3><div id="beltThumbs" class="thumbs"></div><div class="actions"><button id="captureBelt">Capture Belt</button><button id="burstBelt">Automatic Belt Burst</button><button id="chooseBeltFiles">Upload Belt</button><input id="uploadBelt" type="file" accept="image/*,.heic,.heif" multiple hidden><button id="clearBelt">Clear</button></div></div><div class="bank"><h3 style="color:#34d399">Good Products (<span id="goodCount">0</span>)</h3><div id="goodThumbs" class="thumbs"></div><div class="actions"><button id="captureGood" class="good">Capture Good</button><button id="burstGood" class="good">Automatic Good Burst</button><button id="movingGoodBurst" class="good">Moving Good Calibration</button><button id="chooseGoodFiles" class="good">Upload Good</button><input id="uploadGood" type="file" accept="image/*,.heic,.heif" multiple hidden><button id="clearGood">Clear</button></div></div><div class="bank"><h3 style="color:#f87171">Known Rejects — Optional (<span id="badCount">0</span>)</h3><div id="badThumbs" class="thumbs"></div><div class="actions"><button id="captureBad" class="bad">Capture Reject</button><button id="burstBad" class="bad">Automatic Reject Burst</button><button id="chooseBadFiles" class="bad">Upload Reject</button><input id="uploadBad" type="file" accept="image/*,.heic,.heif" multiple hidden><button id="clearBad">Clear</button></div></div><div class="actions"><button id="calibrate" class="warn">Build Inspection Model</button><button id="saveProfile">Save Profile</button><button id="loadProfile">Load Profile</button><button id="deleteProfile">Delete Profile</button></div><p id="uploadMessage" class="help">Uploads ready. JPEG, PNG, WebP and browser-supported iPhone photo formats are accepted.</p><p id="calibrationMessage" class="help">Minimum: 8 belt frames and 12 varied frames of ONE exact SKU and ONE inspected face. The strict artwork gate checks local print, edge and contrast layout.</p></section>
 <section class="panel"><h2>Device & Camera</h2><div id="deviceInfo" class="device-grid"></div><details><summary>Camera Controls</summary><div class="settings"><label>Requested camera profile<select id="cameraProfile"><option value="auto">Automatic best available</option><option value="1080p60">1080p / 60 FPS preference</option><option value="720p60">720p / 60 FPS preference</option><option value="1080p30">1080p / 30 FPS preference</option><option value="720p30">720p / 30 FPS preference</option></select></label><label>Zoom<input id="zoom" type="range" min="1" max="1" step="0.1" value="1"></label><label>Focus distance<input id="focusDistance" type="range" min="0" max="1" step="0.01" value="0" disabled></label><label>Exposure compensation<input id="exposureCompensation" type="range" min="0" max="1" step="0.1" value="0" disabled></label><label>Torch<select id="torch"><option value="off">Off</option><option value="on">On</option></select></label></div><div class="actions" style="padding:0 12px 12px"><button id="applyCamera" class="primary">Apply Camera Controls</button></div></details></section>
 <section class="panel"><h2>Inspection Settings</h2><div class="actions"><button id="presetFast" class="primary">Fast Conveyor</button><button id="presetBalanced" class="good">Balanced</button><button id="presetAccurate" class="purple">High Accuracy</button></div><details><summary>Detection & Session Gate</summary><div class="settings"><label>Pixel difference floor<input id="pixelFloor" type="number" min="10" max="120" value="34"></label><label>Variance multiplier<input id="varianceMultiplier" type="number" min="1" max="8" step="0.1" value="3"></label><label>Minimum object area %<input id="minimumArea" type="number" min="0.5" max="40" step="0.5" value="4"></label><label>Entry coverage %<input id="entryCoverage" type="number" min="0.5" max="30" step="0.1" value="3"></label><label>Clear-gap coverage %<input id="clearCoverage" type="number" min="0.1" max="10" step="0.1" value="1"></label><label>Clear frames before rearm<input id="clearFrames" type="number" min="1" max="15" value="2"></label><label>Maximum session ms<input id="maxSessionMs" type="number" min="100" max="3000" step="50" value="900"></label></div></details><details><summary>Frame Quality & Voting</summary><div class="settings"><label>Minimum sharpness<input id="minimumSharpness" type="number" min="0" max="100" step="0.5" value="8"></label><label>Minimum complete frames<input id="minimumFrames" type="number" min="1" max="10" value="3"></label><label>Best frames to vote<input id="voteFrames" type="number" min="1" max="7" value="3"></label><label>PASS votes required<input id="passVotes" type="number" min="1" max="7" value="2"></label><label>Border safety %<input id="borderSafety" type="number" min="0" max="20" step="0.5" value="3"></label><label>Maximum stored frames<input id="maxStoredFrames" type="number" min="3" max="15" value="7"></label></div></details><details><summary>Model Sensitivity</summary><div class="settings"><label>Acceptance multiplier<input id="acceptanceMultiplier" type="number" min="1" max="6" step="0.1" value="2.5"></label><label>Minimum acceptance %<input id="acceptanceFloor" type="number" min="2" max="40" step="0.5" value="15"></label><label>Maximum acceptance %<input id="acceptanceCeiling" type="number" min="10" max="70" step="0.5" value="32"></label><label>Upside-down veto margin<input id="orientationMargin" type="number" min="0" max="20" step="0.5" value="2"></label><label>Reject-model veto margin<input id="rejectMargin" type="number" min="0" max="20" step="0.5" value="2"></label>
 <label>Strict artwork check
@@ -354,8 +354,196 @@ function readSettings(){CFG={pixelFloor:+$('pixelFloor').value,varianceMultiplie
 function writeSettings(c){const m={pixelFloor:'pixelFloor',varianceMultiplier:'varianceMultiplier',minimumArea:'minimumArea',entryCoverage:'entryCoverage',clearCoverage:'clearCoverage',clearFrames:'clearFrames',maxSessionMs:'maxSessionMs',minimumSharpness:'minimumSharpness',minimumFrames:'minimumFrames',voteFrames:'voteFrames',passVotes:'passVotes',borderSafety:'borderSafety',maxStoredFrames:'maxStoredFrames',acceptanceMultiplier:'acceptanceMultiplier',acceptanceFloor:'acceptanceFloor',acceptanceCeiling:'acceptanceCeiling',orientationMargin:'orientationMargin',rejectMargin:'rejectMargin',strictArtwork:'strictArtwork',artworkLimit:'artworkLimit',maxGoodDiversity:'maxGoodDiversity',strictAcceptanceCeiling:'strictAcceptanceCeiling',processWidth:'processWidth',targetProcessFps:'targetProcessFps',maxLogs:'maxLogs'};for(const[k,id]of Object.entries(m)){let v=c[k];if(['minimumArea','entryCoverage','clearCoverage','borderSafety'].includes(k))v*=100;$(id).value=v}}
 const PRESETS={fast:{...CFG,acceptanceFloor:15,minimumFrames:2,voteFrames:2,passVotes:1,maxSessionMs:550,minimumSharpness:6,processWidth:256,targetProcessFps:40,clearFrames:1},balanced:{...CFG,acceptanceFloor:15},accurate:{...CFG,acceptanceFloor:15,minimumFrames:4,voteFrames:5,passVotes:3,maxSessionMs:1200,minimumSharpness:11,processWidth:416,targetProcessFps:22,clearFrames:3,acceptanceMultiplier:2}};
 function applySettings(){if(running)return alert('Stop inspection first.');readSettings();if(CFG.passVotes>CFG.voteFrames)return alert('PASS votes cannot exceed voting frames.');calibrated=false;backgroundModel=goodModel=badModel=null;$('settingsMessage').textContent='Settings applied. Recalibrate.';benchmark();setStatus('SETTINGS CHANGED — RECALIBRATE')}
-async function fileImage(file){const b=await createImageBitmap(file),c=document.createElement('canvas');c.width=processW;c.height=processH;const x=c.getContext('2d',{willReadFrequently:true}),k=Math.min(c.width/b.width,c.height/b.height),w=b.width*k,h=b.height*k;x.fillStyle='#000';x.fillRect(0,0,c.width,c.height);x.drawImage(b,(c.width-w)/2,(c.height-h)/2,w,h);b.close();return x.getImageData(0,0,c.width,c.height)}
-async function upload(e,type){for(const f of[...e.target.files]){const img=await fileImage(f);if(type==='belt')beltSamples.push(sample(img,type));else{if(!backgroundModel&&beltSamples.length>=2)backgroundModel=buildBackground();const box=backgroundModel?components(makeMask(img))[0]:null;if(box)(type==='good'?goodSamples:badSamples).push(sample(crop(img,box),type))}}e.target.value='';calibrated=false;render()}
+async function fileImage(file){
+let drawable=null;
+let revokeUrl=null;
+
+try{
+if('createImageBitmap'in window){
+try{
+drawable=await createImageBitmap(file,{imageOrientation:'from-image'});
+}catch(firstError){
+try{
+drawable=await createImageBitmap(file);
+}catch(secondError){
+drawable=null;
+}
+}
+}
+
+if(!drawable){
+const url=URL.createObjectURL(file);
+revokeUrl=url;
+drawable=await new Promise((resolve,reject)=>{
+const image=new Image();
+image.onload=()=>resolve(image);
+image.onerror=()=>reject(new Error(
+`This photo format could not be decoded by the browser: ${file.name}`
+));
+image.src=url;
+});
+}
+
+const sourceWidth=drawable.width||drawable.naturalWidth;
+const sourceHeight=drawable.height||drawable.naturalHeight;
+
+if(!sourceWidth||!sourceHeight){
+throw new Error(`Invalid image dimensions: ${file.name}`);
+}
+
+const canvas=document.createElement('canvas');
+canvas.width=processW;
+canvas.height=processH;
+const ctx=canvas.getContext('2d',{willReadFrequently:true});
+ctx.fillStyle='#000';
+ctx.fillRect(0,0,canvas.width,canvas.height);
+
+const scale=Math.min(canvas.width/sourceWidth,canvas.height/sourceHeight);
+const width=sourceWidth*scale;
+const height=sourceHeight*scale;
+ctx.drawImage(
+drawable,
+(canvas.width-width)/2,
+(canvas.height-height)/2,
+width,
+height
+);
+
+return ctx.getImageData(0,0,canvas.width,canvas.height);
+}finally{
+if(drawable&&typeof drawable.close==='function')drawable.close();
+if(revokeUrl)URL.revokeObjectURL(revokeUrl);
+}
+}
+
+function uploadedProductCrop(imageData){
+if(backgroundModel){
+try{
+const detected=components(makeMask(imageData))[0];
+if(detected){
+return{
+imageData:crop(imageData,detected),
+method:'background-isolated'
+};
+}
+}catch(error){
+console.warn('Background isolation failed for upload:',error);
+}
+}
+
+// Fallback: trim black letterboxing and use the complete fitted upload.
+// This prevents valid uploads from silently disappearing.
+const data=imageData.data;
+let minX=imageData.width,minY=imageData.height,maxX=-1,maxY=-1;
+
+for(let y=0;y<imageData.height;y++){
+for(let x=0;x<imageData.width;x++){
+const i=(y*imageData.width+x)*4;
+const brightness=data[i]+data[i+1]+data[i+2];
+if(brightness>24){
+minX=Math.min(minX,x);
+minY=Math.min(minY,y);
+maxX=Math.max(maxX,x);
+maxY=Math.max(maxY,y);
+}
+}
+}
+
+if(maxX>minX&&maxY>minY){
+const box={
+x:minX,
+y:minY,
+w:maxX-minX+1,
+h:maxY-minY+1,
+cx:(minX+maxX)/2,
+cy:(minY+maxY)/2,
+angle:0
+};
+return{
+imageData:crop(imageData,box),
+method:'full-upload-fallback'
+};
+}
+
+return{
+imageData,
+method:'uncropped-fallback'
+};
+}
+
+async function upload(event,type){
+const input=event.target;
+const files=Array.from(input.files||[]);
+
+if(!files.length){
+$('uploadMessage').textContent='No files selected.';
+return;
+}
+
+$('uploadMessage').textContent=`Loading ${files.length} ${type.toUpperCase()} image(s)…`;
+
+let added=0;
+let failed=0;
+let fallbackCount=0;
+const errors=[];
+
+for(const file of files){
+try{
+const imageData=await fileImage(file);
+
+if(type==='belt'){
+beltSamples.push(sample(imageData,type));
+added++;
+continue;
+}
+
+if(!backgroundModel&&beltSamples.length>=2){
+backgroundModel=buildBackground();
+}
+
+const prepared=uploadedProductCrop(imageData);
+if(prepared.method!=='background-isolated')fallbackCount++;
+
+const quality=frameQuality(prepared.imageData,{
+x:processW*.15,
+y:processH*.15,
+w:processW*.70,
+h:processH*.70
+});
+
+// Uploaded reference photos can be stationary and sharp even when their
+// geometry differs from a live ROI crop. Store them rather than discarding.
+const target=type==='good'?goodSamples:badSamples;
+target.push(sample(prepared.imageData,type));
+added++;
+}catch(error){
+failed++;
+errors.push(`${file.name}: ${error.message}`);
+console.error('Upload failed:',file.name,error);
+}
+}
+
+input.value='';
+calibrated=false;
+goodModel=null;
+badModel=null;
+render();
+
+const parts=[`${added} added`];
+if(fallbackCount)parts.push(`${fallbackCount} used smart full-image fallback`);
+if(failed)parts.push(`${failed} failed`);
+
+$('uploadMessage').textContent=
+`${type.toUpperCase()} upload complete: ${parts.join(', ')}.`+
+(errors.length?` ${errors.slice(0,2).join(' | ')}`:'');
+
+if(added===0){
+alert(
+`No ${type} images were added.\n\n`+
+(errors.join('\n')||'The selected files could not be decoded.')
+);
+}
+}
 async function db(){return new Promise((r,j)=>{const q=indexedDB.open('ULI_V5',1);q.onupgradeneeded=()=>q.result.createObjectStore('profiles');q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)})}
 async function saveProfile(){if(!calibrated)return alert('Calibrate first.');const d=await db(),t=d.transaction('profiles','readwrite'),s=t.objectStore('profiles'),compact=a=>a.map(x=>({feature:x.feature,thumb:x.thumb,type:x.type}));s.put({cfg:CFG,roi,direction,good:compact(goodSamples),bad:compact(badSamples),goodModel,badModel},'default');alert('Profile saved. Recapture the belt after loading.')}
 async function loadProfile(){const d=await db(),t=d.transaction('profiles'),q=t.objectStore('profiles').get('default'),p=await new Promise((r,j)=>{q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)});if(!p)return alert('No saved profile.');CFG=p.cfg;roi=p.roi;direction=p.direction;goodSamples=p.good.map(x=>({...x,imageData:null}));badSamples=p.bad.map(x=>({...x,imageData:null}));goodModel=p.goodModel;badModel=p.badModel;beltSamples=[];backgroundModel=null;calibrated=false;writeSettings(CFG);render();updateGuides();$('calibrationMessage').textContent='Product model loaded. Capture 8 fresh belt frames, then build the model.'}
@@ -498,5 +686,5 @@ goodModel=originalGood;
 badModel=originalBad;
 }
 }
-$('captureBelt').onclick=()=>captureSample('belt');$('captureGood').onclick=()=>captureSample('good');$('captureBad').onclick=()=>captureSample('bad');$('burstBelt').onclick=()=>burst('belt');$('burstGood').onclick=()=>burst('good');$('movingGoodBurst').onclick=movingGoodCalibration;$('burstBad').onclick=()=>burst('bad');$('uploadBelt').onchange=e=>upload(e,'belt');$('uploadGood').onchange=e=>upload(e,'good');$('uploadBad').onchange=e=>upload(e,'bad');$('clearBelt').onclick=()=>{beltSamples=[];backgroundModel=null;calibrated=false;render()};$('clearGood').onclick=()=>{goodSamples=[];goodModel=null;calibrated=false;render()};$('clearBad').onclick=()=>{badSamples=[];badModel=null;calibrated=false;render()};$('calibrate').onclick=calibrate;$('saveProfile').onclick=saveProfile;$('loadProfile').onclick=loadProfile;$('deleteProfile').onclick=deleteProfile;$('resetReject').onclick=()=>{rejectCount=0;updateCounter()};$('alarmToggle').onclick=()=>{alarmOn=!alarmOn;updateCounter()};$('clearLog').onclick=()=>$('activityLog').innerHTML='';$('applySettings').onclick=applySettings;$('runSelfTest').onclick=runBuiltInSelfTest;$('saveSettings').onclick=()=>{readSettings();localStorage.setItem('ULI_V5_SETTINGS',JSON.stringify(CFG));alert('Settings saved.')};$('presetFast').onclick=()=>{writeSettings(PRESETS.fast);applySettings()};$('presetBalanced').onclick=()=>{writeSettings(PRESETS.balanced);applySettings()};$('presetAccurate').onclick=()=>{writeSettings(PRESETS.accurate);applySettings()};video.onloadedmetadata=resizeUI;addEventListener('resize',resizeUI);addEventListener('orientationchange',()=>setTimeout(resizeUI,250));const saved=localStorage.getItem('ULI_V5_SETTINGS');if(saved)try{CFG={...CFG,...JSON.parse(saved)};CFG.acceptanceFloor=Math.max(15,CFG.acceptanceFloor||15);CFG.strictArtwork=CFG.strictArtwork??1;CFG.artworkLimit=Math.min(8,CFG.artworkLimit||8);CFG.maxGoodDiversity=CFG.maxGoodDiversity||18;CFG.strictAcceptanceCeiling=CFG.strictAcceptanceCeiling||20;writeSettings(CFG)}catch{}resizeProcessing();render();updateCounter();
+$('captureBelt').onclick=()=>captureSample('belt');$('captureGood').onclick=()=>captureSample('good');$('captureBad').onclick=()=>captureSample('bad');$('burstBelt').onclick=()=>burst('belt');$('burstGood').onclick=()=>burst('good');$('movingGoodBurst').onclick=movingGoodCalibration;$('burstBad').onclick=()=>burst('bad');$('chooseBeltFiles').onclick=()=>$('uploadBelt').click();$('chooseGoodFiles').onclick=()=>$('uploadGood').click();$('chooseBadFiles').onclick=()=>$('uploadBad').click();$('uploadBelt').addEventListener('change',e=>upload(e,'belt'));$('uploadGood').addEventListener('change',e=>upload(e,'good'));$('uploadBad').addEventListener('change',e=>upload(e,'bad'));$('clearBelt').onclick=()=>{beltSamples=[];backgroundModel=null;calibrated=false;render()};$('clearGood').onclick=()=>{goodSamples=[];goodModel=null;calibrated=false;render()};$('clearBad').onclick=()=>{badSamples=[];badModel=null;calibrated=false;render()};$('calibrate').onclick=calibrate;$('saveProfile').onclick=saveProfile;$('loadProfile').onclick=loadProfile;$('deleteProfile').onclick=deleteProfile;$('resetReject').onclick=()=>{rejectCount=0;updateCounter()};$('alarmToggle').onclick=()=>{alarmOn=!alarmOn;updateCounter()};$('clearLog').onclick=()=>$('activityLog').innerHTML='';$('applySettings').onclick=applySettings;$('runSelfTest').onclick=runBuiltInSelfTest;$('saveSettings').onclick=()=>{readSettings();localStorage.setItem('ULI_V5_SETTINGS',JSON.stringify(CFG));alert('Settings saved.')};$('presetFast').onclick=()=>{writeSettings(PRESETS.fast);applySettings()};$('presetBalanced').onclick=()=>{writeSettings(PRESETS.balanced);applySettings()};$('presetAccurate').onclick=()=>{writeSettings(PRESETS.accurate);applySettings()};video.onloadedmetadata=resizeUI;addEventListener('resize',resizeUI);addEventListener('orientationchange',()=>setTimeout(resizeUI,250));const saved=localStorage.getItem('ULI_V5_SETTINGS');if(saved)try{CFG={...CFG,...JSON.parse(saved)};CFG.acceptanceFloor=Math.max(15,CFG.acceptanceFloor||15);CFG.strictArtwork=CFG.strictArtwork??1;CFG.artworkLimit=Math.min(8,CFG.artworkLimit||8);CFG.maxGoodDiversity=CFG.maxGoodDiversity||18;CFG.strictAcceptanceCeiling=CFG.strictAcceptanceCeiling||20;writeSettings(CFG)}catch{}resizeProcessing();render();updateCounter();$('uploadMessage').textContent='Upload controls repaired and ready.';
 </script></body></html>
