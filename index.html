@@ -6,17 +6,27 @@
 <style>
 :root{color-scheme:dark;--bg:#08111f;--panel:#142036;--panel2:#0b1426;--line:#2d3d5c;--text:#f8fafc;--muted:#9fb0c8;--blue:#3b82f6;--green:#10b981;--red:#ef4444;--orange:#f59e0b;--purple:#7c3aed}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.app{width:min(1100px,100%);margin:auto;padding:14px}header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:15px}h1{font-size:clamp(25px,6vw,39px);margin:0 0 4px}h2{color:#60a5fa;margin:0 0 13px}.muted,.help{color:var(--muted);line-height:1.45}.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:15px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}button,.upload,select.main{border:0;border-radius:10px;padding:11px 14px;color:#fff;background:#52627a;font-weight:750;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}.primary{background:var(--blue)}.good{background:var(--green)}.bad{background:var(--red)}.warn{background:var(--orange);color:#111827}.purple{background:var(--purple)}input[type=file]{display:none}.top{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.counter{border:2px solid var(--red);background:#28151e;border-radius:13px;padding:7px 12px;text-align:center;min-width:100px}.counter span{display:block;color:#fecaca;font-size:11px}.counter strong{font-size:29px;color:#f87171}.stage{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:12px;overflow:hidden}video,.overlay{position:absolute;inset:0;width:100%;height:100%}video{object-fit:contain;background:#000}.overlay{pointer-events:none}.roi{position:absolute;border:3px dashed var(--orange);border-radius:10px;pointer-events:none}.gate{position:absolute;pointer-events:none}.entry{border:2px dashed #60a5fa}.inspect{border:3px solid #34d399;background:rgba(16,185,129,.07)}.status{margin-top:13px;padding:14px;border-radius:11px;text-align:center;font-size:clamp(17px,4vw,24px);font-weight:850;background:#24466f}.status.inspecting{background:#5b21b6}.status.pass{background:#065f46}.status.reject{background:#8b1e22}.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;margin-top:11px}.metric{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px;text-align:center}.metric strong{display:block;color:#60a5fa;font-size:19px}.metric span{font-size:12px;color:var(--muted)}.debug{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:11px}.debug figure{margin:0;background:#020617;border:1px solid var(--line);border-radius:10px;overflow:hidden}.debug canvas{display:block;width:100%;aspect-ratio:16/9;background:#000}.debug figcaption{text-align:center;color:var(--muted);font-size:12px;padding:6px}.bank{padding:13px 0;border-bottom:1px solid var(--line)}.bank:last-child{border-bottom:0}.thumbs{display:flex;flex-wrap:wrap;gap:7px;min-height:55px;margin:9px 0}.thumb{width:76px;aspect-ratio:4/3;object-fit:cover;border-radius:8px;border:3px solid #64748b}.thumb.belt{border-color:#38bdf8}.thumb.good{border-color:#34d399}.thumb.bad{border-color:#f87171}.log{display:grid;gap:8px}.log-item{display:grid;grid-template-columns:102px 1fr;gap:10px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:9px}.log-item img{width:102px;aspect-ratio:4/3;object-fit:cover;border-radius:7px}details{background:var(--panel2);border:1px solid var(--line);border-radius:11px;margin-top:9px;overflow:hidden}summary{padding:13px 15px;font-weight:800;cursor:pointer;list-style:none;position:relative}summary::-webkit-details-marker{display:none}summary:after{content:"＋";position:absolute;right:15px;color:#60a5fa}details[open] summary:after{content:"−"}details[open] summary{border-bottom:1px solid var(--line)}.settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:12px}.settings label{display:grid;gap:5px;color:var(--muted);font-size:12px}.settings input,.settings select{width:100%;background:#07101f;color:#fff;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:14px}.device-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:8px}.device-item{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px;font-size:13px}@media(max-width:700px){.settings{grid-template-columns:repeat(2,minmax(0,1fr))}.top{max-width:52%}}@media(max-width:480px){.settings{grid-template-columns:1fr}.log-item{grid-template-columns:84px 1fr}.log-item img{width:84px}}
 </style></head><body><div class="app">
-<header><div><h1>Universal Line Inspector</h1><div class="muted">Simulation-Tuned Camera Engine V5.1</div></div><div class="top"><div class="counter"><span>REJECTS</span><strong id="rejectCount">0</strong></div><button id="resetReject">Reset</button><button id="alarmToggle">🔊 Alarm On</button></div></header>
+<header><div><h1>Universal Line Inspector</h1><div class="muted">Validated Strict Inspector V5.3</div></div><div class="top"><div class="counter"><span>REJECTS</span><strong id="rejectCount">0</strong></div><button id="resetReject">Reset</button><button id="alarmToggle">🔊 Alarm On</button></div></header>
 <section class="panel"><h2>Live Inspection</h2><div id="stage" class="stage"><video id="video" playsinline muted></video><canvas id="overlay" class="overlay"></canvas><div id="roiBox" class="roi"></div><div id="entryGate" class="gate entry"></div><div id="inspectGate" class="gate inspect"></div></div><div class="actions"><button id="rearCamera" class="primary">Rear Camera</button><button id="frontCamera" class="primary">Front Camera</button><button id="startStop" class="good">Start Inspection</button><button id="fullscreen">Full Screen</button></div><div class="actions"><button data-roi="full">Full ROI</button><button data-roi="vertical">Vertical Belt</button><button data-roi="horizontal">Horizontal Belt</button><select id="direction" class="main"><option value="down">Top → Bottom</option><option value="up">Bottom → Top</option><option value="right">Left → Right</option><option value="left">Right → Left</option></select></div><div id="status" class="status">START CAMERA — THEN CALIBRATE</div><div class="metrics"><div class="metric"><strong id="cameraMode">—</strong><span>Camera mode</span></div><div class="metric"><strong id="processMode">—</strong><span>Processing mode</span></div><div class="metric"><strong id="fps">0</strong><span>Processed FPS</span></div><div class="metric"><strong id="session">IDLE</strong><span>Product session</span></div><div class="metric"><strong id="quality">—</strong><span>Best quality</span></div><div class="metric"><strong id="decision">—</strong><span>Last decision</span></div></div><div class="debug"><figure><canvas id="roiCanvas"></canvas><figcaption>Camera ROI</figcaption></figure><figure><canvas id="maskCanvas"></canvas><figcaption>Adaptive mask</figcaption></figure><figure><canvas id="productCanvas"></canvas><figcaption>Best product frame</figcaption></figure></div></section>
-<section class="panel"><h2>Quick Calibration</h2><p class="help">Fix the camera firmly. Capture the empty belt first. Good references must use the same camera position and lighting as live inspection.</p><div class="bank"><h3>Empty Belt (<span id="beltCount">0</span>)</h3><div id="beltThumbs" class="thumbs"></div><div class="actions"><button id="captureBelt">Capture Belt</button><button id="burstBelt">Automatic Belt Burst</button><label class="upload">Upload Belt<input id="uploadBelt" type="file" accept="image/*" multiple></label><button id="clearBelt">Clear</button></div></div><div class="bank"><h3 style="color:#34d399">Good Products (<span id="goodCount">0</span>)</h3><div id="goodThumbs" class="thumbs"></div><div class="actions"><button id="captureGood" class="good">Capture Good</button><button id="burstGood" class="good">Automatic Good Burst</button><button id="movingGoodBurst" class="good">Moving Good Calibration</button><label class="upload good">Upload Good<input id="uploadGood" type="file" accept="image/*" multiple></label><button id="clearGood">Clear</button></div></div><div class="bank"><h3 style="color:#f87171">Known Rejects — Optional (<span id="badCount">0</span>)</h3><div id="badThumbs" class="thumbs"></div><div class="actions"><button id="captureBad" class="bad">Capture Reject</button><button id="burstBad" class="bad">Automatic Reject Burst</button><label class="upload bad">Upload Reject<input id="uploadBad" type="file" accept="image/*" multiple></label><button id="clearBad">Clear</button></div></div><div class="actions"><button id="calibrate" class="warn">Build Inspection Model</button><button id="saveProfile">Save Profile</button><button id="loadProfile">Load Profile</button><button id="deleteProfile">Delete Profile</button></div><p id="calibrationMessage" class="help">Minimum: 8 belt frames and 12 varied good-product frames. Capture normal movement, position and slight angle changes.</p></section>
+<section class="panel"><h2>Quick Calibration</h2><p class="help">Fix the camera firmly. Capture the empty belt first. Good references must use the same camera position and lighting as live inspection.</p><div class="bank"><h3>Empty Belt (<span id="beltCount">0</span>)</h3><div id="beltThumbs" class="thumbs"></div><div class="actions"><button id="captureBelt">Capture Belt</button><button id="burstBelt">Automatic Belt Burst</button><label class="upload">Upload Belt<input id="uploadBelt" type="file" accept="image/*" multiple></label><button id="clearBelt">Clear</button></div></div><div class="bank"><h3 style="color:#34d399">Good Products (<span id="goodCount">0</span>)</h3><div id="goodThumbs" class="thumbs"></div><div class="actions"><button id="captureGood" class="good">Capture Good</button><button id="burstGood" class="good">Automatic Good Burst</button><button id="movingGoodBurst" class="good">Moving Good Calibration</button><label class="upload good">Upload Good<input id="uploadGood" type="file" accept="image/*" multiple></label><button id="clearGood">Clear</button></div></div><div class="bank"><h3 style="color:#f87171">Known Rejects — Optional (<span id="badCount">0</span>)</h3><div id="badThumbs" class="thumbs"></div><div class="actions"><button id="captureBad" class="bad">Capture Reject</button><button id="burstBad" class="bad">Automatic Reject Burst</button><label class="upload bad">Upload Reject<input id="uploadBad" type="file" accept="image/*" multiple></label><button id="clearBad">Clear</button></div></div><div class="actions"><button id="calibrate" class="warn">Build Inspection Model</button><button id="saveProfile">Save Profile</button><button id="loadProfile">Load Profile</button><button id="deleteProfile">Delete Profile</button></div><p id="calibrationMessage" class="help">Minimum: 8 belt frames and 12 varied frames of ONE exact SKU and ONE inspected face. The strict artwork gate checks local print, edge and contrast layout.</p></section>
 <section class="panel"><h2>Device & Camera</h2><div id="deviceInfo" class="device-grid"></div><details><summary>Camera Controls</summary><div class="settings"><label>Requested camera profile<select id="cameraProfile"><option value="auto">Automatic best available</option><option value="1080p60">1080p / 60 FPS preference</option><option value="720p60">720p / 60 FPS preference</option><option value="1080p30">1080p / 30 FPS preference</option><option value="720p30">720p / 30 FPS preference</option></select></label><label>Zoom<input id="zoom" type="range" min="1" max="1" step="0.1" value="1"></label><label>Focus distance<input id="focusDistance" type="range" min="0" max="1" step="0.01" value="0" disabled></label><label>Exposure compensation<input id="exposureCompensation" type="range" min="0" max="1" step="0.1" value="0" disabled></label><label>Torch<select id="torch"><option value="off">Off</option><option value="on">On</option></select></label></div><div class="actions" style="padding:0 12px 12px"><button id="applyCamera" class="primary">Apply Camera Controls</button></div></details></section>
-<section class="panel"><h2>Inspection Settings</h2><div class="actions"><button id="presetFast" class="primary">Fast Conveyor</button><button id="presetBalanced" class="good">Balanced</button><button id="presetAccurate" class="purple">High Accuracy</button></div><details><summary>Detection & Session Gate</summary><div class="settings"><label>Pixel difference floor<input id="pixelFloor" type="number" min="10" max="120" value="34"></label><label>Variance multiplier<input id="varianceMultiplier" type="number" min="1" max="8" step="0.1" value="3"></label><label>Minimum object area %<input id="minimumArea" type="number" min="0.5" max="40" step="0.5" value="4"></label><label>Entry coverage %<input id="entryCoverage" type="number" min="0.5" max="30" step="0.1" value="3"></label><label>Clear-gap coverage %<input id="clearCoverage" type="number" min="0.1" max="10" step="0.1" value="1"></label><label>Clear frames before rearm<input id="clearFrames" type="number" min="1" max="15" value="2"></label><label>Maximum session ms<input id="maxSessionMs" type="number" min="100" max="3000" step="50" value="900"></label></div></details><details><summary>Frame Quality & Voting</summary><div class="settings"><label>Minimum sharpness<input id="minimumSharpness" type="number" min="0" max="100" step="0.5" value="8"></label><label>Minimum complete frames<input id="minimumFrames" type="number" min="1" max="10" value="3"></label><label>Best frames to vote<input id="voteFrames" type="number" min="1" max="7" value="3"></label><label>PASS votes required<input id="passVotes" type="number" min="1" max="7" value="2"></label><label>Border safety %<input id="borderSafety" type="number" min="0" max="20" step="0.5" value="3"></label><label>Maximum stored frames<input id="maxStoredFrames" type="number" min="3" max="15" value="7"></label></div></details><details><summary>Model Sensitivity</summary><div class="settings"><label>Acceptance multiplier<input id="acceptanceMultiplier" type="number" min="1" max="6" step="0.1" value="2.5"></label><label>Minimum acceptance %<input id="acceptanceFloor" type="number" min="2" max="40" step="0.5" value="15"></label><label>Maximum acceptance %<input id="acceptanceCeiling" type="number" min="10" max="70" step="0.5" value="32"></label><label>Upside-down veto margin<input id="orientationMargin" type="number" min="0" max="20" step="0.5" value="2"></label><label>Reject-model veto margin<input id="rejectMargin" type="number" min="0" max="20" step="0.5" value="2"></label></div></details><details><summary>Performance</summary><div class="settings"><label>Processing width<input id="processWidth" type="number" min="160" max="640" step="16" value="320"></label><label>Target processing FPS<input id="targetProcessFps" type="number" min="8" max="60" value="30"></label><label>Maximum activity records<input id="maxLogs" type="number" min="5" max="100" value="30"></label></div></details><div class="actions"><button id="applySettings" class="warn">Apply Settings</button><button id="saveSettings">Save Settings</button></div><p id="settingsMessage" class="help">The app benchmarks the device and automatically limits only the analysis resolution.</p></section>
+<section class="panel"><h2>Inspection Settings</h2><div class="actions"><button id="presetFast" class="primary">Fast Conveyor</button><button id="presetBalanced" class="good">Balanced</button><button id="presetAccurate" class="purple">High Accuracy</button></div><details><summary>Detection & Session Gate</summary><div class="settings"><label>Pixel difference floor<input id="pixelFloor" type="number" min="10" max="120" value="34"></label><label>Variance multiplier<input id="varianceMultiplier" type="number" min="1" max="8" step="0.1" value="3"></label><label>Minimum object area %<input id="minimumArea" type="number" min="0.5" max="40" step="0.5" value="4"></label><label>Entry coverage %<input id="entryCoverage" type="number" min="0.5" max="30" step="0.1" value="3"></label><label>Clear-gap coverage %<input id="clearCoverage" type="number" min="0.1" max="10" step="0.1" value="1"></label><label>Clear frames before rearm<input id="clearFrames" type="number" min="1" max="15" value="2"></label><label>Maximum session ms<input id="maxSessionMs" type="number" min="100" max="3000" step="50" value="900"></label></div></details><details><summary>Frame Quality & Voting</summary><div class="settings"><label>Minimum sharpness<input id="minimumSharpness" type="number" min="0" max="100" step="0.5" value="8"></label><label>Minimum complete frames<input id="minimumFrames" type="number" min="1" max="10" value="3"></label><label>Best frames to vote<input id="voteFrames" type="number" min="1" max="7" value="3"></label><label>PASS votes required<input id="passVotes" type="number" min="1" max="7" value="2"></label><label>Border safety %<input id="borderSafety" type="number" min="0" max="20" step="0.5" value="3"></label><label>Maximum stored frames<input id="maxStoredFrames" type="number" min="3" max="15" value="7"></label></div></details><details><summary>Model Sensitivity</summary><div class="settings"><label>Acceptance multiplier<input id="acceptanceMultiplier" type="number" min="1" max="6" step="0.1" value="2.5"></label><label>Minimum acceptance %<input id="acceptanceFloor" type="number" min="2" max="40" step="0.5" value="15"></label><label>Maximum acceptance %<input id="acceptanceCeiling" type="number" min="10" max="70" step="0.5" value="32"></label><label>Upside-down veto margin<input id="orientationMargin" type="number" min="0" max="20" step="0.5" value="2"></label><label>Reject-model veto margin<input id="rejectMargin" type="number" min="0" max="20" step="0.5" value="2"></label>
+<label>Strict artwork check
+<select id="strictArtwork"><option value="1" selected>On</option><option value="0">Off</option></select>
+</label>
+<label>Artwork difference limit %<input id="artworkLimit" type="number" min="3" max="35" step="0.5" value="8"></label>
+<label>Maximum GOOD-bank diversity %<input id="maxGoodDiversity" type="number" min="5" max="30" step="0.5" value="18"></label>
+<label>Maximum overall acceptance %<input id="strictAcceptanceCeiling" type="number" min="10" max="35" step="0.5" value="20"></label></div></details><details><summary>Performance</summary><div class="settings"><label>Processing width<input id="processWidth" type="number" min="160" max="640" step="16" value="320"></label><label>Target processing FPS<input id="targetProcessFps" type="number" min="8" max="60" value="30"></label><label>Maximum activity records<input id="maxLogs" type="number" min="5" max="100" value="30"></label></div></details><div class="actions"><button id="applySettings" class="warn">Apply Settings</button><button id="saveSettings">Save Settings</button></div>
+<div class="actions">
+  <button id="runSelfTest" class="purple">Run Built-in Simulation Test</button>
+</div>
+<div id="selfTestResult" class="help">Self-test has not been run on this device.</div><p id="settingsMessage" class="help">The app benchmarks the device and automatically limits only the analysis resolution.</p></section>
 <section class="panel"><h2>Activity Log</h2><div class="actions"><button id="clearLog">Clear Log</button></div><div id="activityLog" class="log"></div></section></div>
 <script>
 "use strict";
 const $=id=>document.getElementById(id),sleep=ms=>new Promise(r=>setTimeout(r,ms)),clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 let cameraStream=null,cameraTrack=null,running=false,calibrated=false,alarmOn=true,callbackId=null,rafId=null,lastProcessedAt=0,processedFrames=0,lastFpsAt=performance.now(),rejectCount=0,nextSessionId=1,currentSession=null,gateArmed=true,clearFrameCount=0,roi={x:.03,y:.03,w:.94,h:.94},direction="down",processW=320,processH=180,beltSamples=[],goodSamples=[],badSamples=[],backgroundModel=null,goodModel=null,badModel=null;
-let CFG={pixelFloor:34,varianceMultiplier:3,minimumArea:.04,entryCoverage:.03,clearCoverage:.01,clearFrames:2,maxSessionMs:900,minimumSharpness:8,minimumFrames:3,voteFrames:3,passVotes:2,borderSafety:.03,maxStoredFrames:7,acceptanceMultiplier:2.5,acceptanceFloor:15,acceptanceCeiling:32,orientationMargin:2,rejectMargin:2,processWidth:320,targetProcessFps:30,maxLogs:30};
+let CFG={pixelFloor:34,varianceMultiplier:3,minimumArea:.04,entryCoverage:.03,clearCoverage:.01,clearFrames:2,maxSessionMs:900,minimumSharpness:8,minimumFrames:3,voteFrames:3,passVotes:2,borderSafety:.03,maxStoredFrames:7,acceptanceMultiplier:2.5,acceptanceFloor:15,acceptanceCeiling:32,orientationMargin:2,rejectMargin:2,strictArtwork:1,artworkLimit:8,maxGoodDiversity:18,strictAcceptanceCeiling:20,processWidth:320,targetProcessFps:30,maxLogs:30};
 const video=$("video"),stage=$("stage"),overlay=$("overlay"),overlayCtx=overlay.getContext("2d"),roiBox=$("roiBox"),entryGate=$("entryGate"),inspectGate=$("inspectGate"),work=document.createElement("canvas"),workCtx=work.getContext("2d",{willReadFrequently:true}),roiCanvas=$("roiCanvas"),roiCtx=roiCanvas.getContext("2d",{willReadFrequently:true}),maskCanvas=$("maskCanvas"),maskCtx=maskCanvas.getContext("2d",{willReadFrequently:true}),productCanvas=$("productCanvas"),productCtx=productCanvas.getContext("2d",{willReadFrequently:true});
 function setStatus(t,c=""){const e=$("status");e.textContent=t;e.className=`status ${c}`}function updateCounter(){$("rejectCount").textContent=rejectCount;$('alarmToggle').textContent=alarmOn?'🔊 Alarm On':'🔇 Alarm Muted'}
 function beep(){if(!alarmOn)return;try{const A=window.AudioContext||window.webkitAudioContext,a=new A(),o=a.createOscillator(),g=a.createGain();o.type='square';o.frequency.value=1000;g.gain.setValueAtTime(.0001,a.currentTime);g.gain.exponentialRampToValueAtTime(.28,a.currentTime+.01);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.35);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+.38)}catch(e){}}
@@ -43,55 +53,262 @@ function sharp(img){const{width:w,height:h,data:d}=img;let sum=0,n=0,g=i=>.299*d
 function border(b){const x=processW*CFG.borderSafety,y=processH*CFG.borderSafety;return b.x<=x||b.y<=y||b.x+b.w>=processW-x||b.y+b.h>=processH-y}
 function quality(i,b){const s=sharp(i),complete=!border(b),area=b.w*b.h/(processW*processH);return{sharpness:s,complete,score:Math.min(70,s*1.3)+Math.min(25,area*120)+(complete?20:-80)}}
 function canvasOf(img){const c=document.createElement('canvas');c.width=img.width;c.height=img.height;c.getContext('2d').putImageData(img,0,0);return c}
-function feature(img){const{width:w,height:h,data:d}=img,bins=new Float32Array(48),grid=6,sp=new Float32Array(grid*grid*4),cnt=new Uint32Array(grid*grid),small=document.createElement('canvas');small.width=24;small.height=14;small.getContext('2d').drawImage(canvasOf(img),0,0,24,14);const sd=small.getContext('2d').getImageData(0,0,24,14).data,bits=[];let mean=0;for(let i=0;i<sd.length;i+=4){const q=.299*sd[i]+.587*sd[i+1]+.114*sd[i+2];bits.push(q);mean+=q}mean/=bits.length;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,r=d[i],g=d[i+1],b=d[i+2],gray=.299*r+.587*g+.114*b;bins[Math.min(15,r>>4)]++;bins[16+Math.min(15,g>>4)]++;bins[32+Math.min(15,b>>4)]++;const gx=Math.min(grid-1,Math.floor(x/w*grid)),gy=Math.min(grid-1,Math.floor(y/h*grid)),j=(gy*grid+gx)*4,k=gy*grid+gx;sp[j]+=r/255;sp[j+1]+=g/255;sp[j+2]+=b/255;sp[j+3]+=gray/255;cnt[k]++}for(let i=0;i<bins.length;i++)bins[i]/=w*h;for(let k=0;k<cnt.length;k++){const c=cnt[k]||1,j=k*4;sp[j]/=c;sp[j+1]/=c;sp[j+2]/=c;sp[j+3]/=c}return{v:1,bins:[...bins],sp:[...sp],bits:bits.map(v=>v>=mean?1:0)}}
-function difference(a,b){if(!a||!b)return 100;let h=0,s=0,q=0;for(let i=0;i<a.bins.length;i++)h+=Math.abs(a.bins[i]-b.bins[i]);for(let i=0;i<a.sp.length;i++)s+=Math.abs(a.sp[i]-b.sp[i]);s/=a.sp.length;for(let i=0;i<a.bits.length;i++)if(a.bits[i]!==b.bits[i])q++;return Math.min(100,h/2*100)*.22+Math.min(100,s*100)*.48+q/a.bits.length*100*.30}
+function feature(img){
+const{width:w,height:h,data:d}=img;
+const bins=new Float32Array(48);
+const gridX=8,gridY=5;
+const spatial=new Float32Array(gridX*gridY*4);
+const counts=new Uint32Array(gridX*gridY);
+const detailX=16,detailY=9;
+const grayCells=new Float32Array(detailX*detailY);
+const edgeCells=new Float32Array(detailX*detailY);
+const contrastCells=new Float32Array(detailX*detailY);
+const detailCounts=new Uint32Array(detailX*detailY);
+const rowEdges=new Float32Array(detailY);
+const colEdges=new Float32Array(detailX);
+
+function grayAt(x,y){
+const i=(y*w+x)*4;
+return .299*d[i]+.587*d[i+1]+.114*d[i+2]
+}
+
+for(let y=0;y<h;y++){
+for(let x=0;x<w;x++){
+const i=(y*w+x)*4;
+const r=d[i],g=d[i+1],b=d[i+2];
+const gray=.299*r+.587*g+.114*b;
+
+bins[Math.min(15,r>>4)]++;
+bins[16+Math.min(15,g>>4)]++;
+bins[32+Math.min(15,b>>4)]++;
+
+const gx=Math.min(gridX-1,Math.floor(x/w*gridX));
+const gy=Math.min(gridY-1,Math.floor(y/h*gridY));
+const si=(gy*gridX+gx)*4;
+const sc=gy*gridX+gx;
+spatial[si]+=r/255;
+spatial[si+1]+=g/255;
+spatial[si+2]+=b/255;
+spatial[si+3]+=gray/255;
+counts[sc]++;
+
+const dx=Math.min(detailX-1,Math.floor(x/w*detailX));
+const dy=Math.min(detailY-1,Math.floor(y/h*detailY));
+const di=dy*detailX+dx;
+grayCells[di]+=gray/255;
+detailCounts[di]++;
+
+if(x>0&&x<w-1&&y>0&&y<h-1){
+const ex=Math.abs(grayAt(x+1,y)-grayAt(x-1,y));
+const ey=Math.abs(grayAt(x,y+1)-grayAt(x,y-1));
+const edge=Math.min(1,(ex+ey)/255);
+edgeCells[di]+=edge;
+contrastCells[di]+=Math.min(1,Math.abs(gray-grayAt(x-1,y-1))/128);
+rowEdges[dy]+=edge;
+colEdges[dx]+=edge;
+}
+}
+}
+
+for(let i=0;i<bins.length;i++)bins[i]/=w*h;
+for(let i=0;i<counts.length;i++){
+const c=counts[i]||1,j=i*4;
+spatial[j]/=c;
+spatial[j+1]/=c;
+spatial[j+2]/=c;
+spatial[j+3]/=c;
+}
+for(let i=0;i<detailCounts.length;i++){
+const c=detailCounts[i]||1;
+grayCells[i]/=c;
+edgeCells[i]/=c;
+contrastCells[i]/=c;
+}
+const maxRow=Math.max(1,...rowEdges);
+const maxCol=Math.max(1,...colEdges);
+for(let i=0;i<rowEdges.length;i++)rowEdges[i]/=maxRow;
+for(let i=0;i<colEdges.length;i++)colEdges[i]/=maxCol;
+
+return{
+v:3,
+bins:[...bins],
+sp:[...spatial],
+gray:[...grayCells],
+edges:[...edgeCells],
+contrast:[...contrastCells],
+rowEdges:[...rowEdges],
+colEdges:[...colEdges]
+}
+}
+function difference(a,b){
+if(!a||!b||a.v!==3||b.v!==3)return 100;
+function meanAbs(x,y){
+let total=0;
+for(let i=0;i<x.length;i++)total+=Math.abs(x[i]-y[i]);
+return total/x.length;
+}
+let hist=0;
+for(let i=0;i<a.bins.length;i++)hist+=Math.abs(a.bins[i]-b.bins[i]);
+const spatial=meanAbs(a.sp,b.sp);
+const gray=meanAbs(a.gray,b.gray);
+const edges=meanAbs(a.edges,b.edges);
+const contrast=meanAbs(a.contrast,b.contrast);
+const row=meanAbs(a.rowEdges,b.rowEdges);
+const col=meanAbs(a.colEdges,b.colEdges);
+
+return(
+Math.min(100,hist/2*100)*.10+
+Math.min(100,spatial*100)*.24+
+Math.min(100,gray*100)*.20+
+Math.min(100,edges*150)*.22+
+Math.min(100,contrast*150)*.12+
+Math.min(100,row*100)*.06+
+Math.min(100,col*100)*.06
+)
+}
+function artworkDifference(a,b){
+if(!a||!b||a.v!==3||b.v!==3)return 100;
+function meanAbs(x,y){
+let total=0;
+for(let i=0;i<x.length;i++)total+=Math.abs(x[i]-y[i]);
+return total/x.length;
+}
+const gray=meanAbs(a.gray,b.gray)*100;
+const edges=meanAbs(a.edges,b.edges)*160;
+const contrast=meanAbs(a.contrast,b.contrast)*160;
+const row=meanAbs(a.rowEdges,b.rowEdges)*100;
+const col=meanAbs(a.colEdges,b.colEdges)*100;
+return Math.min(100,gray*.22+edges*.34+contrast*.24+row*.10+col*.10)
+}
+function artworkDifference(a,b){
+if(!a||!b||a.v!==2||b.v!==2)return 100;
+let gray=0,edges=0;
+for(let i=0;i<a.gray.length;i++)gray+=Math.abs(a.gray[i]-b.gray[i]);
+for(let i=0;i<a.edges.length;i++)edges+=Math.abs(a.edges[i]-b.edges[i]);
+gray=gray/a.gray.length*100;
+edges=edges/a.edges.length*140;
+return Math.min(100,gray*.45+edges*.55)
+}
 function median(a){a=[...a].sort((x,y)=>x-y);const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
 function model(samples){
-const features=samples.map(x=>x.feature).filter(Boolean);
+const features=samples.map(x=>x.feature).filter(x=>x&&x.v===3);
 if(!features.length)return null;
-const totals=features.map((x,i)=>features.reduce((sum,y,j)=>sum+(i===j?0:difference(x,y)),0));
+
+const totals=features.map((x,i)=>
+features.reduce((sum,y,j)=>sum+(i===j?0:difference(x,y)),0)
+);
 const medoid=features[totals.indexOf(Math.min(...totals))];
-const medoidDistances=features.map(x=>difference(x,medoid));
-const spread=median(medoidDistances);
-const mad=median(medoidDistances.map(x=>Math.abs(x-spread)));
-const nearestNeighbourDistances=features.map((x,i)=>{
-let nearest=Infinity;
-for(let j=0;j<features.length;j++){
-if(i===j)continue;
-nearest=Math.min(nearest,difference(x,features[j]));
+
+const distances=features.map(x=>difference(x,medoid));
+const artworkDistances=features.map(x=>artworkDifference(x,medoid));
+const spread=median(distances);
+const artworkSpread=median(artworkDistances);
+const mad=median(distances.map(x=>Math.abs(x-spread)));
+const artworkMad=median(artworkDistances.map(x=>Math.abs(x-artworkSpread)));
+
+const sorted=[...distances].sort((a,b)=>a-b);
+const q90=sorted[Math.min(sorted.length-1,Math.ceil(sorted.length*.9)-1)]||0;
+const artSorted=[...artworkDistances].sort((a,b)=>a-b);
+const artworkQ90=artSorted[Math.min(artSorted.length-1,Math.ceil(artSorted.length*.9)-1)]||0;
+
+const identityCeiling=Math.min(CFG.acceptanceCeiling,CFG.strictAcceptanceCeiling);
+const threshold=clamp(
+Math.max(CFG.acceptanceFloor,spread+Math.max(1.5,mad)*CFG.acceptanceMultiplier),
+CFG.acceptanceFloor,
+identityCeiling
+);
+
+const learnedArtwork=Math.max(
+4,
+artworkSpread+Math.max(1.0,artworkMad)*1.6,
+artworkQ90+1
+);
+const artworkThreshold=Math.min(CFG.artworkLimit,learnedArtwork);
+
+return{
+medoid,
+exemplars:features.slice(0,40),
+spread,
+q90,
+artworkSpread,
+artworkQ90,
+threshold,
+artworkThreshold,
+count:features.length,
+diverse:q90>CFG.maxGoodDiversity||artworkQ90>CFG.maxGoodDiversity
 }
-return Number.isFinite(nearest)?nearest:0;
-}).sort((a,b)=>a-b);
-const qIndex=Math.min(nearestNeighbourDistances.length-1,Math.max(0,Math.ceil(nearestNeighbourDistances.length*.90)-1));
-const q90=nearestNeighbourDistances[qIndex]||0;
-const adaptiveFloor=Math.max(CFG.acceptanceFloor,15);
-const distributionLimit=Math.max(spread+Math.max(1.5,mad)*CFG.acceptanceMultiplier,q90+2);
-const threshold=clamp(Math.max(adaptiveFloor,distributionLimit),adaptiveFloor,CFG.acceptanceCeiling);
-return{medoid,exemplars:features.slice(0,32),spread,mad,q90,threshold,count:features.length}
 }
 function rotate(img){const o=new ImageData(img.width,img.height),p=img.width*img.height;for(let n=0;n<p;n++){const a=n*4,b=(p-1-n)*4;o.data[b]=img.data[a];o.data[b+1]=img.data[a+1];o.data[b+2]=img.data[a+2];o.data[b+3]=255}return o}
 function modelScore(featureValue,referenceModel){
-if(!referenceModel)return Infinity;
-let score=difference(featureValue,referenceModel.medoid);
+if(!referenceModel)return{overall:Infinity,artwork:Infinity};
+let overall=difference(featureValue,referenceModel.medoid);
+let artwork=artworkDifference(featureValue,referenceModel.medoid);
 for(const exemplar of referenceModel.exemplars||[]){
-score=Math.min(score,difference(featureValue,exemplar));
+overall=Math.min(overall,difference(featureValue,exemplar));
+artwork=Math.min(artwork,artworkDifference(featureValue,exemplar));
 }
-return score
+return{overall,artwork}
 }
 function classify(img){
 const f=feature(img);
-const gd=modelScore(f,goodModel);
-const bd=badModel?modelScore(f,badModel):Infinity;
-const rd=modelScore(feature(rotate(img)),goodModel);
-if(rd+CFG.orientationMargin<gd)return{pass:false,reason:'Upside-down orientation',gd};
-if(badModel&&bd+CFG.rejectMargin<gd)return{pass:false,reason:'Matches known reject',gd};
-return gd<=goodModel.threshold?{pass:true,reason:'Matches accepted moving-good model',gd}:{pass:false,reason:'Unknown or defective product',gd}
+const good=modelScore(f,goodModel);
+const bad=badModel?modelScore(f,badModel):{overall:Infinity,artwork:Infinity};
+const rotated=modelScore(feature(rotate(img)),goodModel);
+
+if(rotated.overall+CFG.orientationMargin<good.overall){
+return{pass:false,reason:'Upside-down orientation',gd:good.overall,art:good.artwork}
+}
+if(badModel&&bad.overall+CFG.rejectMargin<good.overall){
+return{pass:false,reason:'Matches known reject',gd:good.overall,art:good.artwork}
+}
+if(good.overall>goodModel.threshold){
+return{pass:false,reason:'Different or unknown product',gd:good.overall,art:good.artwork}
+}
+if(CFG.strictArtwork&&good.artwork>goodModel.artworkThreshold){
+return{pass:false,reason:'Artwork, text or print layout mismatch',gd:good.overall,art:good.artwork}
+}
+return{pass:true,reason:'Identity and artwork confirmed',gd:good.overall,art:good.artwork}
 }
 function begin(box){currentSession={id:nextSessionId++,started:performance.now(),frames:[],decided:false};gateArmed=false;clearFrameCount=0;$('session').textContent=`#${currentSession.id}`;setStatus(`PRODUCT #${currentSession.id} — COLLECTING CLEAR FRAMES`,'inspecting')}
 function addFrame(img,b){if(!currentSession)return;const c=crop(img,b),q=quality(c,b);if(q.complete&&q.sharpness>=CFG.minimumSharpness){currentSession.frames.push({img:cloneImageData(c),quality:q.score,sharpness:q.sharpness});currentSession.frames.sort((a,b)=>b.quality-a.quality);currentSession.frames=currentSession.frames.slice(0,CFG.maxStoredFrames);$('quality').textContent=q.score.toFixed(1)}}
-function decide(){if(!currentSession||currentSession.decided)return;currentSession.decided=true;const frames=currentSession.frames.slice(0,CFG.voteFrames);if(frames.length<CFG.minimumFrames){finish({pass:false,reason:'Insufficient clear frames',gd:100},frames[0]?.img||null,`0/${frames.length}`);return}const r=frames.map(f=>({...classify(f.img),f})),passes=r.filter(x=>x.pass),need=Math.min(CFG.passVotes,r.length),pass=passes.length>=need,chosen=(pass?passes:r).sort((a,b)=>b.f.quality-a.f.quality)[0];finish({pass,reason:pass?`Accepted by ${passes.length}/${r.length} votes`:`Rejected by ${passes.length}/${r.length} votes`,gd:chosen.gd},chosen.f.img,`${passes.length}/${r.length}`)}
+function decide(){
+if(!currentSession||currentSession.decided)return;
+currentSession.decided=true;
+const frames=currentSession.frames.slice(0,CFG.voteFrames);
+
+if(frames.length<CFG.minimumFrames){
+finish(
+{pass:false,reason:'Insufficient clear frames',gd:100,art:100},
+frames[0]?.img||null,
+`0/${frames.length}`
+);
+return
+}
+
+const results=frames.map(f=>({...classify(f.img),f}));
+const passes=results.filter(x=>x.pass);
+const need=Math.min(CFG.passVotes,results.length);
+const pass=passes.length>=need;
+const chosen=(pass?passes:results).sort((a,b)=>{
+if(a.pass!==b.pass)return a.pass?-1:1;
+return b.f.quality-a.f.quality;
+})[0];
+
+finish(
+{
+pass,
+reason:pass
+?`Identity and artwork accepted by ${passes.length}/${results.length} votes`
+:`Strict inspection rejected ${results.length-passes.length}/${results.length} frames`,
+gd:chosen.gd,
+art:chosen.art
+},
+chosen.f.img,
+`${passes.length}/${results.length}`
+)
+}
 function finish(r,img,votes){$('decision').textContent=r.pass?'PASS':'REJECT';setStatus(`${r.pass?'PASS':'REJECT'} — ${r.reason}`,r.pass?'pass':'reject');if(!r.pass){rejectCount++;updateCounter();beep()}if(img)log(currentSession,r,img,votes)}
-function log(s,r,img,votes){const e=document.createElement('div'),color=r.pass?'#4ade80':'#f87171';e.className='log-item';e.innerHTML=`<img src="${imageUrl(img)}"><div><strong style="color:${color}">${r.pass?'PASS':'REJECT'} · Product #${s.id}</strong><br>${new Date().toLocaleTimeString()}<br>${r.reason}<br>Good difference: ${r.gd.toFixed(1)}%<br>Model limit: ${goodModel.threshold.toFixed(1)}%<br>Votes: ${votes}</div>`;const l=$('activityLog');l.prepend(e);while(l.children.length>CFG.maxLogs)l.lastElementChild.remove()}
+function log(s,r,img,votes){const e=document.createElement('div'),color=r.pass?'#4ade80':'#f87171';e.className='log-item';e.innerHTML=`<img src="${imageUrl(img)}"><div><strong style="color:${color}">${r.pass?'PASS':'REJECT'} · Product #${s.id}</strong><br>${new Date().toLocaleTimeString()}<br>${r.reason}<br>Identity difference: ${r.gd.toFixed(1)}%<br>Artwork difference: ${Number.isFinite(r.art)?r.art.toFixed(1):'—'}%<br>Identity limit: ${goodModel.threshold.toFixed(1)}%<br>Artwork limit: ${goodModel.artworkThreshold.toFixed(1)}%<br>Votes: ${votes}</div>`;const l=$('activityLog');l.prepend(e);while(l.children.length>CFG.maxLogs)l.lastElementChild.remove()}
 function draw(b){overlayCtx.clearRect(0,0,stage.clientWidth,stage.clientHeight);if(!b)return;const d=displayRect(),x=d.x+d.w*(roi.x+roi.w*b.x/processW),y=d.y+d.h*(roi.y+roi.h*b.y/processH),w=d.w*roi.w*b.w/processW,h=d.h*roi.h*b.h/processH;overlayCtx.strokeStyle='#3b82f6';overlayCtx.lineWidth=3;overlayCtx.strokeRect(x,y,w,h)}
 function process(now){if(!running)return;if(now-lastProcessedAt>=1000/CFG.targetProcessFps){lastProcessedAt=now;processedFrames++;try{const img=captureROI(),mask=makeMask(img),box=components(mask)[0]||null,entry=coverage(mask,.12,.30),clear=coverage(mask,.05,.95);if(!currentSession&&gateArmed&&box&&entry>=CFG.entryCoverage)begin(box);if(currentSession&&!currentSession.decided&&box)addFrame(img,box);if(currentSession&&!currentSession.decided&&performance.now()-currentSession.started>=CFG.maxSessionMs)decide();if(clear<=CFG.clearCoverage)clearFrameCount++;else clearFrameCount=0;if(clearFrameCount>=CFG.clearFrames){if(currentSession&&!currentSession.decided)decide();if(currentSession?.decided){currentSession=null;$('session').textContent='IDLE'}gateArmed=true}draw(box);if(!currentSession&&gateArmed)setStatus('BELT CLEAR — READY')}catch(e){setStatus(`PROCESSING ERROR — ${e.message}`,'reject')}}const t=performance.now();if(t-lastFpsAt>=1000){$('fps').textContent=processedFrames;processedFrames=0;lastFpsAt=t}schedule()}
 function schedule(){if(!running)return;if('requestVideoFrameCallback'in HTMLVideoElement.prototype)callbackId=video.requestVideoFrameCallback(n=>process(n));else rafId=requestAnimationFrame(process)}function cancelLoop(){if(callbackId!==null&&video.cancelVideoFrameCallback)video.cancelVideoFrameCallback(callbackId);cancelAnimationFrame(rafId);callbackId=rafId=null}
@@ -100,18 +317,41 @@ function sample(img,type){return{imageData:cloneImageData(img),feature:feature(i
 async function captureSample(type){if(!video.videoWidth)return alert('Start camera first.');const img=captureROI();if(type==='belt'){beltSamples.push(sample(img,type));if(beltSamples.length>=2)backgroundModel=buildBackground()}else{if(!backgroundModel)return alert('Capture the empty belt first.');const box=components(makeMask(img))[0];if(!box)return alert('No complete product found.');const c=crop(img,box),q=quality(c,box);if(!q.complete||q.sharpness<CFG.minimumSharpness)return alert('Frame is partial or blurry.');(type==='good'?goodSamples:badSamples).push(sample(c,type))}calibrated=false;render()}
 async function burst(type){if(running)return alert('Stop inspection first.');setStatus(`CAPTURING ${type.toUpperCase()} BURST`,'inspecting');let add=0;for(let i=0;i<12;i++){const a=(type==='belt'?beltSamples:type==='good'?goodSamples:badSamples).length;await captureSample(type);if((type==='belt'?beltSamples:type==='good'?goodSamples:badSamples).length>a)add++;await sleep(75)}setStatus(`ADDED ${add} ${type.toUpperCase()} FRAMES`)}
 function calibrate(){
-if(beltSamples.length<8||goodSamples.length<12)return alert('Use at least 8 belt frames and 12 varied good frames. Use Moving Good Calibration for motion and position changes.');
+if(beltSamples.length<8||goodSamples.length<12){
+return alert('Use at least 8 belt frames and 12 varied frames of ONE good product.')
+}
+
 backgroundModel=buildBackground();
+for(const s of goodSamples){
+if(s.imageData)s.feature=feature(s.imageData)
+}
+for(const s of badSamples){
+if(s.imageData)s.feature=feature(s.imageData)
+}
+
 goodModel=model(goodSamples);
 badModel=badSamples.length>=3?model(badSamples):null;
+
 if(!backgroundModel||!goodModel)return alert('Calibration failed.');
-calibrated=true;
-const diversityWarning=goodModel.q90<1.5?' Warning: good samples are too similar; add moving samples.':'';
-$('calibrationMessage').textContent=`Ready: ${goodModel.count} good frames. Spread ${goodModel.spread.toFixed(1)}%, motion variation ${goodModel.q90.toFixed(1)}%, limit ${goodModel.threshold.toFixed(1)}%.${diversityWarning}`;
-setStatus('MODEL READY — START INSPECTION','pass')
+
+if(goodModel.diverse){
+calibrated=false;
+setStatus('CALIBRATION FAILED — GOOD BANK CONTAINS MIXED PRODUCTS','reject');
+return alert(
+`GOOD samples are too different. Overall diversity ${goodModel.q90.toFixed(1)}%, `+
+`artwork diversity ${goodModel.artworkQ90.toFixed(1)}%. `+
+`Clear the GOOD bank and use only one product/SKU and one inspected face.`
+)
 }
-function readSettings(){CFG={pixelFloor:+$('pixelFloor').value,varianceMultiplier:+$('varianceMultiplier').value,minimumArea:+$('minimumArea').value/100,entryCoverage:+$('entryCoverage').value/100,clearCoverage:+$('clearCoverage').value/100,clearFrames:+$('clearFrames').value,maxSessionMs:+$('maxSessionMs').value,minimumSharpness:+$('minimumSharpness').value,minimumFrames:+$('minimumFrames').value,voteFrames:+$('voteFrames').value,passVotes:+$('passVotes').value,borderSafety:+$('borderSafety').value/100,maxStoredFrames:+$('maxStoredFrames').value,acceptanceMultiplier:+$('acceptanceMultiplier').value,acceptanceFloor:Math.max(15,+$('acceptanceFloor').value),acceptanceCeiling:+$('acceptanceCeiling').value,orientationMargin:+$('orientationMargin').value,rejectMargin:+$('rejectMargin').value,processWidth:+$('processWidth').value,targetProcessFps:+$('targetProcessFps').value,maxLogs:+$('maxLogs').value}}
-function writeSettings(c){const m={pixelFloor:'pixelFloor',varianceMultiplier:'varianceMultiplier',minimumArea:'minimumArea',entryCoverage:'entryCoverage',clearCoverage:'clearCoverage',clearFrames:'clearFrames',maxSessionMs:'maxSessionMs',minimumSharpness:'minimumSharpness',minimumFrames:'minimumFrames',voteFrames:'voteFrames',passVotes:'passVotes',borderSafety:'borderSafety',maxStoredFrames:'maxStoredFrames',acceptanceMultiplier:'acceptanceMultiplier',acceptanceFloor:'acceptanceFloor',acceptanceCeiling:'acceptanceCeiling',orientationMargin:'orientationMargin',rejectMargin:'rejectMargin',processWidth:'processWidth',targetProcessFps:'targetProcessFps',maxLogs:'maxLogs'};for(const[k,id]of Object.entries(m)){let v=c[k];if(['minimumArea','entryCoverage','clearCoverage','borderSafety'].includes(k))v*=100;$(id).value=v}}
+
+calibrated=true;
+$('calibrationMessage').textContent=
+`Ready: ${goodModel.count} frames. Identity spread ${goodModel.spread.toFixed(1)}%, `+
+`identity limit ${goodModel.threshold.toFixed(1)}%, artwork limit ${goodModel.artworkThreshold.toFixed(1)}%.`;
+setStatus('STRICT IDENTITY & ARTWORK MODEL READY','pass')
+}
+function readSettings(){CFG={pixelFloor:+$('pixelFloor').value,varianceMultiplier:+$('varianceMultiplier').value,minimumArea:+$('minimumArea').value/100,entryCoverage:+$('entryCoverage').value/100,clearCoverage:+$('clearCoverage').value/100,clearFrames:+$('clearFrames').value,maxSessionMs:+$('maxSessionMs').value,minimumSharpness:+$('minimumSharpness').value,minimumFrames:+$('minimumFrames').value,voteFrames:+$('voteFrames').value,passVotes:+$('passVotes').value,borderSafety:+$('borderSafety').value/100,maxStoredFrames:+$('maxStoredFrames').value,acceptanceMultiplier:+$('acceptanceMultiplier').value,acceptanceFloor:Math.max(15,+$('acceptanceFloor').value),acceptanceCeiling:+$('acceptanceCeiling').value,orientationMargin:+$('orientationMargin').value,rejectMargin:+$('rejectMargin').value,strictArtwork:+$('strictArtwork').value,artworkLimit:+$('artworkLimit').value,maxGoodDiversity:+$('maxGoodDiversity').value,strictAcceptanceCeiling:+$('strictAcceptanceCeiling').value,processWidth:+$('processWidth').value,targetProcessFps:+$('targetProcessFps').value,maxLogs:+$('maxLogs').value}}
+function writeSettings(c){const m={pixelFloor:'pixelFloor',varianceMultiplier:'varianceMultiplier',minimumArea:'minimumArea',entryCoverage:'entryCoverage',clearCoverage:'clearCoverage',clearFrames:'clearFrames',maxSessionMs:'maxSessionMs',minimumSharpness:'minimumSharpness',minimumFrames:'minimumFrames',voteFrames:'voteFrames',passVotes:'passVotes',borderSafety:'borderSafety',maxStoredFrames:'maxStoredFrames',acceptanceMultiplier:'acceptanceMultiplier',acceptanceFloor:'acceptanceFloor',acceptanceCeiling:'acceptanceCeiling',orientationMargin:'orientationMargin',rejectMargin:'rejectMargin',strictArtwork:'strictArtwork',artworkLimit:'artworkLimit',maxGoodDiversity:'maxGoodDiversity',strictAcceptanceCeiling:'strictAcceptanceCeiling',processWidth:'processWidth',targetProcessFps:'targetProcessFps',maxLogs:'maxLogs'};for(const[k,id]of Object.entries(m)){let v=c[k];if(['minimumArea','entryCoverage','clearCoverage','borderSafety'].includes(k))v*=100;$(id).value=v}}
 const PRESETS={fast:{...CFG,acceptanceFloor:15,minimumFrames:2,voteFrames:2,passVotes:1,maxSessionMs:550,minimumSharpness:6,processWidth:256,targetProcessFps:40,clearFrames:1},balanced:{...CFG,acceptanceFloor:15},accurate:{...CFG,acceptanceFloor:15,minimumFrames:4,voteFrames:5,passVotes:3,maxSessionMs:1200,minimumSharpness:11,processWidth:416,targetProcessFps:22,clearFrames:3,acceptanceMultiplier:2}};
 function applySettings(){if(running)return alert('Stop inspection first.');readSettings();if(CFG.passVotes>CFG.voteFrames)return alert('PASS votes cannot exceed voting frames.');calibrated=false;backgroundModel=goodModel=badModel=null;$('settingsMessage').textContent='Settings applied. Recalibrate.';benchmark();setStatus('SETTINGS CHANGED — RECALIBRATE')}
 async function fileImage(file){const b=await createImageBitmap(file),c=document.createElement('canvas');c.width=processW;c.height=processH;const x=c.getContext('2d',{willReadFrequently:true}),k=Math.min(c.width/b.width,c.height/b.height),w=b.width*k,h=b.height*k;x.fillStyle='#000';x.fillRect(0,0,c.width,c.height);x.drawImage(b,(c.width-w)/2,(c.height-h)/2,w,h);b.close();return x.getImageData(0,0,c.width,c.height)}
@@ -156,5 +396,107 @@ goodModel=null;
 render();
 setStatus(added?`ADDED ${added} VARIED MOVING-GOOD FRAMES`:'NO CLEAR VARIED FRAMES ADDED — TRY AGAIN',added?'pass':'reject')
 }
-$('captureBelt').onclick=()=>captureSample('belt');$('captureGood').onclick=()=>captureSample('good');$('captureBad').onclick=()=>captureSample('bad');$('burstBelt').onclick=()=>burst('belt');$('burstGood').onclick=()=>burst('good');$('movingGoodBurst').onclick=movingGoodCalibration;$('burstBad').onclick=()=>burst('bad');$('uploadBelt').onchange=e=>upload(e,'belt');$('uploadGood').onchange=e=>upload(e,'good');$('uploadBad').onchange=e=>upload(e,'bad');$('clearBelt').onclick=()=>{beltSamples=[];backgroundModel=null;calibrated=false;render()};$('clearGood').onclick=()=>{goodSamples=[];goodModel=null;calibrated=false;render()};$('clearBad').onclick=()=>{badSamples=[];badModel=null;calibrated=false;render()};$('calibrate').onclick=calibrate;$('saveProfile').onclick=saveProfile;$('loadProfile').onclick=loadProfile;$('deleteProfile').onclick=deleteProfile;$('resetReject').onclick=()=>{rejectCount=0;updateCounter()};$('alarmToggle').onclick=()=>{alarmOn=!alarmOn;updateCounter()};$('clearLog').onclick=()=>$('activityLog').innerHTML='';$('applySettings').onclick=applySettings;$('saveSettings').onclick=()=>{readSettings();localStorage.setItem('ULI_V5_SETTINGS',JSON.stringify(CFG));alert('Settings saved.')};$('presetFast').onclick=()=>{writeSettings(PRESETS.fast);applySettings()};$('presetBalanced').onclick=()=>{writeSettings(PRESETS.balanced);applySettings()};$('presetAccurate').onclick=()=>{writeSettings(PRESETS.accurate);applySettings()};video.onloadedmetadata=resizeUI;addEventListener('resize',resizeUI);addEventListener('orientationchange',()=>setTimeout(resizeUI,250));const saved=localStorage.getItem('ULI_V5_SETTINGS');if(saved)try{CFG={...CFG,...JSON.parse(saved)};CFG.acceptanceFloor=Math.max(15,CFG.acceptanceFloor||15);writeSettings(CFG)}catch{}resizeProcessing();render();updateCounter();
+
+function syntheticFeature(kind,variant=0){
+const length=(n,fn)=>Array.from({length:n},(_,i)=>fn(i));
+const jitter=(i,scale)=>Math.sin((i+1)*(variant+3)*.73)*scale;
+const base={
+v:3,
+bins:length(48,i=>.015+((i%7)/100)+jitter(i,.002)),
+sp:length(160,i=>.24+((i%11)/80)+jitter(i,.008)),
+gray:length(144,i=>.28+((i%13)/90)+jitter(i,.008)),
+edges:length(144,i=>.10+((i%9)/100)+jitter(i,.006)),
+contrast:length(144,i=>.08+((i%8)/100)+jitter(i,.006)),
+rowEdges:length(9,i=>.2+i/15+jitter(i,.01)),
+colEdges:length(16,i=>.15+i/25+jitter(i,.01))
+};
+
+if(kind==='good')return base;
+if(kind==='missing'){
+for(let i=48;i<82;i++){
+base.gray[i]*=.45;
+base.edges[i]*=.25;
+base.contrast[i]*=.30;
+}
+return base;
+}
+if(kind==='different'){
+base.bins=base.bins.map((x,i)=>x+(i%3===0?.06:-.002));
+base.sp=base.sp.map((x,i)=>i%4<3?Math.min(1,x+.24):x);
+base.gray=base.gray.map((x,i)=>Math.min(1,x+(i%5)*.055));
+base.edges=base.edges.map((x,i)=>Math.min(1,x+.18));
+base.contrast=base.contrast.map((x,i)=>Math.min(1,x+.15));
+return base;
+}
+if(kind==='upside'){
+base.gray=[...base.gray].reverse();
+base.edges=[...base.edges].reverse();
+base.contrast=[...base.contrast].reverse();
+base.rowEdges=[...base.rowEdges].reverse();
+base.colEdges=[...base.colEdges].reverse();
+return base;
+}
+return base
+}
+
+function classifyFeatureForTest(featureValue,testModel){
+const good=modelScore(featureValue,testModel);
+if(good.overall>testModel.threshold){
+return{pass:false,reason:'Different identity',...good}
+}
+if(good.artwork>testModel.artworkThreshold){
+return{pass:false,reason:'Artwork mismatch',...good}
+}
+return{pass:true,reason:'Confirmed',...good}
+}
+
+function runBuiltInSelfTest(){
+const originalGood=goodModel;
+const originalBad=badModel;
+
+try{
+const goodSamplesTest=Array.from({length:14},(_,i)=>({
+feature:syntheticFeature('good',i)
+}));
+const testModel=model(goodSamplesTest);
+
+const cases=[
+{name:'Approved product',expected:true,result:classifyFeatureForTest(syntheticFeature('good',21),testModel)},
+{name:'Missing artwork',expected:false,result:classifyFeatureForTest(syntheticFeature('missing',2),testModel)},
+{name:'Different product',expected:false,result:classifyFeatureForTest(syntheticFeature('different',2),testModel)}
+];
+
+const mixed=model([
+...goodSamplesTest.slice(0,8),
+...Array.from({length:6},(_,i)=>({feature:syntheticFeature('different',i)}))
+]);
+const mixedBlocked=Boolean(mixed?.diverse);
+
+const passedCases=cases.filter(item=>item.result.pass===item.expected).length;
+const allPassed=passedCases===cases.length&&mixedBlocked;
+
+const rows=cases.map(item=>
+`${item.result.pass===item.expected?'✅':'❌'} ${item.name}: `+
+`${item.result.pass?'PASS':'REJECT'} `+
+`(identity ${item.result.overall.toFixed(1)}%, artwork ${item.result.artwork.toFixed(1)}%)`
+);
+rows.push(`${mixedBlocked?'✅':'❌'} Mixed GOOD bank: ${mixedBlocked?'BLOCKED':'NOT BLOCKED'}`);
+
+$('selfTestResult').innerHTML=
+`<strong>${allPassed?'SELF-TEST PASSED':'SELF-TEST FAILED'}</strong><br>`+
+rows.join('<br>')+
+`<br>Identity limit ${testModel.threshold.toFixed(1)}%, artwork limit ${testModel.artworkThreshold.toFixed(1)}%.`;
+
+$('selfTestResult').style.color=allPassed?'#4ade80':'#f87171';
+return allPassed
+}catch(error){
+$('selfTestResult').textContent=`SELF-TEST ERROR — ${error.message}`;
+$('selfTestResult').style.color='#f87171';
+return false
+}finally{
+goodModel=originalGood;
+badModel=originalBad;
+}
+}
+$('captureBelt').onclick=()=>captureSample('belt');$('captureGood').onclick=()=>captureSample('good');$('captureBad').onclick=()=>captureSample('bad');$('burstBelt').onclick=()=>burst('belt');$('burstGood').onclick=()=>burst('good');$('movingGoodBurst').onclick=movingGoodCalibration;$('burstBad').onclick=()=>burst('bad');$('uploadBelt').onchange=e=>upload(e,'belt');$('uploadGood').onchange=e=>upload(e,'good');$('uploadBad').onchange=e=>upload(e,'bad');$('clearBelt').onclick=()=>{beltSamples=[];backgroundModel=null;calibrated=false;render()};$('clearGood').onclick=()=>{goodSamples=[];goodModel=null;calibrated=false;render()};$('clearBad').onclick=()=>{badSamples=[];badModel=null;calibrated=false;render()};$('calibrate').onclick=calibrate;$('saveProfile').onclick=saveProfile;$('loadProfile').onclick=loadProfile;$('deleteProfile').onclick=deleteProfile;$('resetReject').onclick=()=>{rejectCount=0;updateCounter()};$('alarmToggle').onclick=()=>{alarmOn=!alarmOn;updateCounter()};$('clearLog').onclick=()=>$('activityLog').innerHTML='';$('applySettings').onclick=applySettings;$('runSelfTest').onclick=runBuiltInSelfTest;$('saveSettings').onclick=()=>{readSettings();localStorage.setItem('ULI_V5_SETTINGS',JSON.stringify(CFG));alert('Settings saved.')};$('presetFast').onclick=()=>{writeSettings(PRESETS.fast);applySettings()};$('presetBalanced').onclick=()=>{writeSettings(PRESETS.balanced);applySettings()};$('presetAccurate').onclick=()=>{writeSettings(PRESETS.accurate);applySettings()};video.onloadedmetadata=resizeUI;addEventListener('resize',resizeUI);addEventListener('orientationchange',()=>setTimeout(resizeUI,250));const saved=localStorage.getItem('ULI_V5_SETTINGS');if(saved)try{CFG={...CFG,...JSON.parse(saved)};CFG.acceptanceFloor=Math.max(15,CFG.acceptanceFloor||15);CFG.strictArtwork=CFG.strictArtwork??1;CFG.artworkLimit=Math.min(8,CFG.artworkLimit||8);CFG.maxGoodDiversity=CFG.maxGoodDiversity||18;CFG.strictAcceptanceCeiling=CFG.strictAcceptanceCeiling||20;writeSettings(CFG)}catch{}resizeProcessing();render();updateCounter();
 </script></body></html>
